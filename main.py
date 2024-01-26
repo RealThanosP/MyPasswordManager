@@ -31,7 +31,7 @@ class App:
         self.generatorLabel.pack()
 
         #Generator button IMG
-
+        
         #Generator button
         self.generationButton = ttk.Button(self.frameGenerator,
                                           )
