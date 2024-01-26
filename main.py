@@ -11,10 +11,14 @@ WIN_HEIGHT = 500
 GENERATOR_BUTTON_IMG = "Images/refresh.png"
 COPY_BUTTON_IMG = "Images/copy.png"
 APP_ICON = "Images/lock_icon.ico"
+
 # Sizes
 BUTTON_SIZE = (25,25)
 
 #Fonts and colors
+BUTTON_COLOR = "#333333"
+
+
 FONT_NAME = "Segui UI"
 FONT_SIZE_BUTTONS = 15
 FONT_SIZE_ENTRIES = 17
@@ -39,16 +43,28 @@ class MainApp(ctk.CTk):
         self.generatorIMG = ctk.CTkImage(dark_image=Image.open(GENERATOR_BUTTON_IMG),
                                          light_image=Image.open(GENERATOR_BUTTON_IMG),
                                          size=BUTTON_SIZE)
+        
+        # Copy Button Image
+        self.clipboardIMG = ctk.CTkImage(dark_image=Image.open(COPY_BUTTON_IMG),
+                                    light_image=Image.open(COPY_BUTTON_IMG),
+                                    size=BUTTON_SIZE)
         self.generatorSection()
     def generatorSection(self):
-        
-        #Generator Button
+        #Password entrybox
+        # Copy Button
+        self.copyButton = ctk.CTkButton(master=self.frame,
+                                        image=self.clipboardIMG,
+                                        width=BUTTON_SIZE[0], height=BUTTON_SIZE[1],
+                                        text="",
+                                        fg_color=BUTTON_COLOR)
+        self.copyButton.grid(row=1, column=1)
+        # Generator Button
         self.generatorButton = ctk.CTkButton(master=self.frame,
                                              image=self.generatorIMG,
                                              text="",
                                              width=BUTTON_SIZE[0], height=BUTTON_SIZE[1],
-                                             fg_color="grey")
-        self.generatorButton.pack()
+                                             fg_color=BUTTON_COLOR)
+        self.generatorButton.grid(row=1, column=2)
 
 
 if __name__ == '__main__':

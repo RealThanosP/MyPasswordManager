@@ -1,15 +1,31 @@
-import time
 
-# Start measuring time
-start_time = time.process_time()
+import tkinter as tk
+from tkinter import ttk
 
-# Your code to be timed goes here
+def on_enter(event):
+    tooltip_label.place(x=event.x_root, y=event.y_root)
+    tooltip_var.set("Click this button to perform a specific action.")
 
-# Stop measuring time
-end_time = time.process_time()
+# Create the main window
+app = tk.Tk()
+app.title("Tooltip Example")
 
-# Calculate the elapsed time
-elapsed_time = end_time - start_time
+# Create a ttk.Button with a style
+style = ttk.Style()
+style.configure('TButton', padding=(10, 5))
+action_button = ttk.Button(app, text="Click me", style='TButton')
 
-# Print or use the elapsed time as needed
-print(f"Elapsed time: {elapsed_time} seconds")
+# Create a StringVar for the tooltip text
+tooltip_var = tk.StringVar()
+tooltip_var.set("Hover over the button to see a tooltip.")
+
+# Create a ttk.Label for the tooltip
+tooltip_label = ttk.Label(app, textvariable=tooltip_var, background='#FFFFDD', relief='solid', borderwidth=1)
+
+# Bind the enter and leave events to the functions
+action_button.bind("<Enter>", on_enter)
+
+action_button.pack(pady=20)
+
+# Run the application
+app.mainloop()
