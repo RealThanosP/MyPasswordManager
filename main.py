@@ -1,46 +1,56 @@
-import tkinter as tk
-from tkinter import ttk
-from PIL import Image, ImageTk
+import customtkinter as ctk
+from PIL import Image
+#Constants
 
-#Variables 
-WINDOW_GEOMETRY = "600x500"
+#Window
+WIN_WIDTH = 600
+WIN_HEIGHT = 500
 
+#Buttons
+# Paths
 GENERATOR_BUTTON_IMG = "Images/refresh.png"
+COPY_BUTTON_IMG = "Images/copy.png"
+APP_ICON = "Images/lock_icon.ico"
+# Sizes
+BUTTON_SIZE = (25,25)
 
+#Fonts and colors
+FONT_NAME = "Segui UI"
+FONT_SIZE_BUTTONS = 15
+FONT_SIZE_ENTRIES = 17
+FONT_SIZE_TITLES = 20
 
-class App:
-    def __init__(self, root):
-        self.root = root
-        self.root.geometry(WINDOW_GEOMETRY)
+class MainApp(ctk.CTk):
 
-        #Main frame
-        self.frame = tk.Frame(self.root)
+    def __init__(self):
+        super().__init__()
+        self.title("Password Manager")
+        self.geometry(f"{WIN_WIDTH}x{WIN_HEIGHT}")
+        self.iconbitmap(APP_ICON)
+        self.resizable(False, False)
+
+        # Main frame
+        self.frame = ctk.CTkFrame(master=self,
+                                  width=WIN_WIDTH, height=WIN_HEIGHT,
+                                  fg_color=("white", "#0F0F0F"))
         self.frame.pack(expand=True, fill="both")
 
-        #Generate password section
-        self.GeneratorSection()
-
-    def GeneratorSection(self):
-        #Long frame with an entry/Text onj to show the generated password and 2 buttons(generate, copy to clipboard)
-        self.frameGenerator = tk.Frame(self.frame)
+        # Generator Button image
+        self.generatorIMG = ctk.CTkImage(dark_image=Image.open(GENERATOR_BUTTON_IMG),
+                                         light_image=Image.open(GENERATOR_BUTTON_IMG),
+                                         size=BUTTON_SIZE)
+        self.generatorSection()
+    def generatorSection(self):
         
-        #Password generator title label
-        self.generatorLabel = tk.Label(self.frameGenerator,
-                                       text="Your Password is:",
-                                       font=("Helvetica", 20))
-        self.generatorLabel.pack()
+        #Generator Button
+        self.generatorButton = ctk.CTkButton(master=self.frame,
+                                             image=self.generatorIMG,
+                                             text="",
+                                             width=BUTTON_SIZE[0], height=BUTTON_SIZE[1],
+                                             fg_color="grey")
+        self.generatorButton.pack()
 
-        #Generator button IMG
-        
-        #Generator button
-        self.generationButton = ttk.Button(self.frameGenerator,
-                                          )
-        #Password entry
-        self.GeneratorEntry = tk.Entry(self.frameGenerator
-                                            )
 
-        self.frameGenerator.pack()
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = App(root)
-    root.mainloop()
+if __name__ == '__main__':
+    app = MainApp()
+    app.mainloop()
