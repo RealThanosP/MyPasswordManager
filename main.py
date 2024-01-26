@@ -1,12 +1,11 @@
 import customtkinter as ctk
 from PIL import Image
-#Constants
 
-#Window
+#Constants
+# Window
 WIN_WIDTH = 600
 WIN_HEIGHT = 500
 
-#Buttons
 # Paths
 GENERATOR_BUTTON_IMG = "Images/refresh.png"
 COPY_BUTTON_IMG = "Images/copy.png"
@@ -18,11 +17,12 @@ BUTTON_SIZE = (25,25)
 #Fonts and colors
 BUTTON_COLOR = "#333333"
 
-
 FONT_NAME = "Segui UI"
+
 FONT_SIZE_BUTTONS = 15
 FONT_SIZE_ENTRIES = 17
-FONT_SIZE_TITLES = 20
+FONT_SIZE_TITLES = 24
+
 
 class MainApp(ctk.CTk):
 
@@ -50,23 +50,41 @@ class MainApp(ctk.CTk):
                                     size=BUTTON_SIZE)
         self.generatorSection()
     def generatorSection(self):
+        
+        # Generator Section frame
+        self.frameGenerator = ctk.CTkFrame(master=self.frame,
+                                           corner_radius=0)
+
+        #Title label for generator
+        self.generatorLabel = ctk.CTkLabel(master=self.frameGenerator,
+                                           text="Your Password is:",
+                                           font=(FONT_NAME, FONT_SIZE_TITLES))
+        self.generatorLabel.grid(row=0, column=0, columnspan=3)
         #Password entrybox
+        self.generatorEntry = ctk.CTkEntry(master=self.frameGenerator,
+                                           width=WIN_WIDTH-3*BUTTON_SIZE[0],
+                                           corner_radius=0)
+        self.generatorEntry.grid(row=1, column=0)
+
         # Copy Button
-        self.copyButton = ctk.CTkButton(master=self.frame,
+        self.copyButton = ctk.CTkButton(master=self.frameGenerator,
                                         image=self.clipboardIMG,
                                         width=BUTTON_SIZE[0], height=BUTTON_SIZE[1],
                                         text="",
-                                        fg_color=BUTTON_COLOR)
+                                        fg_color=BUTTON_COLOR,
+                                        corner_radius=0)
         self.copyButton.grid(row=1, column=1)
+
         # Generator Button
-        self.generatorButton = ctk.CTkButton(master=self.frame,
+        self.generatorButton = ctk.CTkButton(master=self.frameGenerator,
                                              image=self.generatorIMG,
                                              text="",
                                              width=BUTTON_SIZE[0], height=BUTTON_SIZE[1],
-                                             fg_color=BUTTON_COLOR)
+                                             fg_color=BUTTON_COLOR,
+                                             corner_radius=0)
         self.generatorButton.grid(row=1, column=2)
 
-
+        self.frameGenerator.pack()
 if __name__ == '__main__':
     app = MainApp()
     app.mainloop()
