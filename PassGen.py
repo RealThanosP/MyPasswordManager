@@ -1,8 +1,6 @@
 import secrets
 import json
 
-
-
 class PassGenerator:
     '''Generates passwords using python.secrets'''
     def __init__(self, length:int, easy_to_remember:bool, hasLetters:bool, hasNumbers:bool, hasSymbols:bool):
@@ -12,12 +10,13 @@ class PassGenerator:
         self.hasLetters = hasLetters
         self.length = length
 
-        #Sets up the list of allowed characters to generate the password
-        self.allowed_characters = self.selected_characters()
-        
-        #Generate the password
-        self.random_password = self.generate_password()
-
+    def __repr__(self):
+        return f"""password:{self.generate_password()}, attributes:[{self.length}, 
+                            {self.easy_to_remember}, 
+                            {self.hasLetters},
+                            {self.hasNumbers},
+                            {self.hasSymbols}]"""
+    
     def load_characters(self, file_name):
         '''Opens a json file with file_name and unloads all the keys as a list'''
         with open(file_name, "r", encoding="utf-8") as file:
@@ -38,7 +37,7 @@ class PassGenerator:
         allowed_characters = []
 
         if self.easy_to_remember:
-            allowed_characters += self.real_words + self.symbols
+            allowed_characters += self.real_words + self.uppercase
         
         if self.hasNumbers:
             allowed_characters += self.numbers
@@ -55,9 +54,13 @@ class PassGenerator:
         '''Generates a random password'''
         password = ""
         random_choice = ""
-        while len(password) < self.length:
-            random_choice = secrets.choice(self.allowed_characters)
+        allowed_characters = self.selected_characters()
 
+        if not allowed_characters:
+            return None
+        
+        while len(password) < self.length:
+            random_choice = secrets.choice(allowed_characters)
             if random_choice in self.real_words:
                 random_choice = f"{random_choice}-"
 
@@ -65,11 +68,9 @@ class PassGenerator:
                 password += random_choice
 
         return password
-    
+
+
 if __name__ == '__main__':
-    gen = PassGenerator(20, True, False, False, False)
-    password = gen.random_password 
-    print(password)
-
-
-
+    gen = PassGenerator(0, True, True, True, True)
+    random_password = gen.generate_password()
+    print(None == "")

@@ -1,5 +1,7 @@
 import customtkinter as ctk
 from PIL import Image
+from PassGen import PassGenerator
+import pyperclip
 
 #Constants
 # Window
@@ -16,13 +18,18 @@ BUTTON_SIZE = (25,25)
 
 #Fonts and colors
 BUTTON_COLOR = "#333333"
-
+BUTTON_COLOR_ON_HOVER = "#555555"
 FONT_NAME = "Segui UI"
 
+FONT_SIZE_LABELS = 15
 FONT_SIZE_BUTTONS = 15
 FONT_SIZE_ENTRIES = 17
 FONT_SIZE_TITLES = 24
 
+CHECKBOX_PADDING = 5
+SLIDER_PADDING = 20
+
+GENERATOR_ENTRY_WIDTH = WIN_WIDTH-4.9*BUTTON_SIZE[0]
 
 class MainApp(ctk.CTk):
 
@@ -33,6 +40,8 @@ class MainApp(ctk.CTk):
         self.iconbitmap(APP_ICON)
         self.resizable(False, False)
 
+        ctk.set_appearance_mode("dark")  # Modes: system (default), light, dark
+        ctk.set_default_color_theme("dark-blue")
         # Main frame
         self.frame = ctk.CTkFrame(master=self,
                                   width=WIN_WIDTH, height=WIN_HEIGHT,
@@ -49,42 +58,184 @@ class MainApp(ctk.CTk):
                                     light_image=Image.open(COPY_BUTTON_IMG),
                                     size=BUTTON_SIZE)
         self.generatorSection()
+
+    # Pass generator section ##DONE##
     def generatorSection(self):
-        
+
         # Generator Section frame
-        self.frameGenerator = ctk.CTkFrame(master=self.frame,
-                                           corner_radius=0)
+        self.frameGenerator = ctk.CTkFrame(master=self.frame)
+
+        #Top frame:
+        self.frameGeneratorTopBar = ctk.CTkFrame(master=self.frameGenerator, corner_radius=0)
+        self.frameGeneratorTopBar.pack(fill="x")
 
         #Title label for generator
-        self.generatorLabel = ctk.CTkLabel(master=self.frameGenerator,
+        self.generatorLabel = ctk.CTkLabel(master=self.frameGeneratorTopBar,
                                            text="Your Password is:",
                                            font=(FONT_NAME, FONT_SIZE_TITLES))
         self.generatorLabel.grid(row=0, column=0, columnspan=3)
+
         #Password entrybox
-        self.generatorEntry = ctk.CTkEntry(master=self.frameGenerator,
-                                           width=WIN_WIDTH-3*BUTTON_SIZE[0],
-                                           corner_radius=0)
-        self.generatorEntry.grid(row=1, column=0)
+        self.generatorEntry = ctk.CTkEntry(master=self.frameGeneratorTopBar,
+                                           font=(FONT_NAME, FONT_SIZE_ENTRIES),
+                                           width=GENERATOR_ENTRY_WIDTH,
+                                           corner_radius=5,
+                                           insertofftime=999999999, insertontime=0)
+        self.generatorEntry.grid(row=1, column=0, padx=CHECKBOX_PADDING)
 
         # Copy Button
-        self.copyButton = ctk.CTkButton(master=self.frameGenerator,
+        self.copyButton = ctk.CTkButton(master=self.frameGeneratorTopBar,
                                         image=self.clipboardIMG,
                                         width=BUTTON_SIZE[0], height=BUTTON_SIZE[1],
-                                        text="",
+                                        text="", hover_color=BUTTON_COLOR_ON_HOVER,
                                         fg_color=BUTTON_COLOR,
-                                        corner_radius=0)
-        self.copyButton.grid(row=1, column=1)
+                                        corner_radius=10,
+                                        command=self.copy_clipboard)
+        self.copyButton.grid(row=1, column=1, padx=1)
 
         # Generator Button
-        self.generatorButton = ctk.CTkButton(master=self.frameGenerator,
+        self.generatorButton = ctk.CTkButton(master=self.frameGeneratorTopBar,
                                              image=self.generatorIMG,
                                              text="",
                                              width=BUTTON_SIZE[0], height=BUTTON_SIZE[1],
-                                             fg_color=BUTTON_COLOR,
-                                             corner_radius=0)
-        self.generatorButton.grid(row=1, column=2)
+                                             fg_color=BUTTON_COLOR, hover_color=BUTTON_COLOR_ON_HOVER,
+                                             corner_radius=10,
+                                             command=self.generatePassword)
+        self.generatorButton.grid(row=1, column=2, padx=1)
 
-        self.frameGenerator.pack()
+        # Password progressbar
+        self.generatorProgressBar = ctk.CTkProgressBar(master = self.frameGeneratorTopBar,
+                                                       orientation="horizontal",
+                                                       width=GENERATOR_ENTRY_WIDTH,
+                                                       )
+        
+        self.generatorProgressBar.grid(row=2, column=0)
+        #Checkbox/Settitngs frame
+        
+        self.frameGeneratorSettings = ctk.CTkFrame(master=self.frameGenerator, corner_radius=0)
+
+        
+        # Checkbox variables:
+        self.easyToRememberVar = ctk.StringVar(value=False)
+        self.hasLettersVar = ctk.StringVar(value=False)
+        self.hasNumbersVar = ctk.StringVar(value=False)
+        self.hasSymbolsVar = ctk.StringVar(value=False)
+
+        # Generator Checkboxes:
+        self.easyToRememberBox = ctk.CTkCheckBox(master=self.frameGeneratorSettings,
+                                                 text="Easy to remember",
+                                                 font=(FONT_NAME, FONT_SIZE_LABELS),
+                                                 onvalue=True, offvalue=False,
+                                                 fg_color=BUTTON_COLOR_ON_HOVER,
+                                                 variable=self.easyToRememberVar)
+        self.easyToRememberBox.grid(row=0, column=0, sticky="w", pady=CHECKBOX_PADDING, padx=CHECKBOX_PADDING)
+
+        self.hasLettersBox = ctk.CTkCheckBox(master=self.frameGeneratorSettings,
+                                             text="Has letters",
+                                             font=(FONT_NAME, FONT_SIZE_LABELS),
+                                             onvalue=True, offvalue=False,
+                                             fg_color=BUTTON_COLOR_ON_HOVER,
+                                             variable=self.hasLettersVar)
+        self.hasLettersBox.grid(row=1, column=0, sticky="w", pady=CHECKBOX_PADDING, padx=CHECKBOX_PADDING)
+
+        self.hasNumbersBox = ctk.CTkCheckBox(master=self.frameGeneratorSettings,
+                                             text="Has Numbers",
+                                             font=(FONT_NAME, FONT_SIZE_LABELS),
+                                             onvalue=True, offvalue=False,
+                                             fg_color=BUTTON_COLOR_ON_HOVER,
+                                             variable=self.hasNumbersVar)
+        self.hasNumbersBox.grid(row=2, column=0, sticky="w", pady=CHECKBOX_PADDING, padx=CHECKBOX_PADDING)
+
+        self.hasSymbolsBox = ctk.CTkCheckBox(master=self.frameGeneratorSettings,
+                                             text="Has symbols",
+                                             font=(FONT_NAME, FONT_SIZE_LABELS),
+                                             onvalue=True, offvalue=False,
+                                             fg_color=BUTTON_COLOR_ON_HOVER,
+                                             variable=self.hasSymbolsVar)
+        self.hasSymbolsBox.grid(row=3, column=0, sticky="w", pady=CHECKBOX_PADDING, padx=CHECKBOX_PADDING)
+
+        # Length bar topLabel
+        self.lengthLabel = ctk.CTkLabel(master=self.frameGeneratorSettings,
+                                        text="Length",
+                                        font=(FONT_NAME, FONT_SIZE_BUTTONS))
+        self.lengthLabel.grid(row=0, column=1, rowspan=2)
+
+        # Length bar
+        self.slider = ctk.CTkSlider(master =self.frameGeneratorSettings,
+                                    from_=0, to=50,
+                                    fg_color=BUTTON_COLOR_ON_HOVER,
+                                    width=250,
+                                    command=self.slidingLength)
+        self.slider.grid(row=0, column=1, rowspan=4, padx=SLIDER_PADDING)
+
+        # Length bar label
+        self.sliderLabel = ctk.CTkLabel(master=self.frameGeneratorSettings,
+                                          text="25", justify="center",
+                                          font=(FONT_NAME, FONT_SIZE_LABELS))
+        self.sliderLabel.grid(row=3, column=1, rowspan=4, padx=SLIDER_PADDING)
+
+        #Error Label
+        self.errorLabelGenerator = ctk.CTkLabel(master=self.frameGeneratorSettings, 
+                                                text="",
+                                                font=(FONT_NAME, FONT_SIZE_LABELS),
+                                                justify="center")
+        self.errorLabelGenerator.grid(row=0, column=2, sticky="e", rowspan=3)
+
+        self.frameGenerator.pack(fill="x")
+        self.frameGeneratorSettings.pack(fill="x")
+
+    def slidingLength(self, value):
+        # Makes the slider feel more cut rather that a scroller
+        rounded_value = round(value / 2) * 2
+        self.slider.set(rounded_value)
+        self.sliderLabel.configure(text=int(value))
+        
+        # This if/elif/else monstrosity detemines the color of the progress bar based on the
+        # length of the password selected
+        pass_strongness = self.sliderLabel.cget("text")
+        if pass_strongness <= 5:
+            self.generatorProgressBar.configure(progress_color="red")
+        elif pass_strongness > 5 and pass_strongness <= 10:
+            self.generatorProgressBar.configure(progress_color="yellow")
+        elif pass_strongness > 10  and pass_strongness <= 20:
+            self.generatorProgressBar.configure(progress_color="lime")
+        elif pass_strongness > 20 and pass_strongness < 30:
+            self.generatorProgressBar.configure(progress_color="green")
+        else:
+            self.generatorProgressBar.configure(progress_color="darkgreen")
+
+        # Determines the value of the progressbar
+        self.generatorProgressBar.set(pass_strongness/20)
+
+    def generatePassword(self):
+        bool_dictionary = {"0": False, "1":True}
+        # Resets the error label and entry values
+        self.errorLabelGenerator.configure(text="")
+        self.generatorEntry.delete(0,"end")
+
+        generator = PassGenerator(int(self.slider.get()), 
+                                  bool_dictionary[self.easyToRememberVar.get()], 
+                                  bool_dictionary[self.hasLettersVar.get()],
+                                  bool_dictionary[self.hasNumbersVar.get()],
+                                  bool_dictionary[self.hasSymbolsVar.get()])
+        
+        random_password = generator.generate_password()
+        
+        if random_password == None:
+            self.errorLabelGenerator.configure(text=f"Please check \none of the checkboxes \nto generate a \npassword")
+            return
+
+        if random_password == "":
+            self.errorLabelGenerator.configure(text=f"You cannot \ngenerate a password \nlength 0.")
+            return
+        
+        self.generatorEntry.delete(0, "end")
+        self.generatorEntry.insert(0, random_password)
+    
+    def copy_clipboard(self):
+        generated_password = self.generatorEntry.get()
+        pyperclip.copy(generated_password)
+  
 if __name__ == '__main__':
     app = MainApp()
     app.mainloop()
