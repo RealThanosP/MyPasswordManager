@@ -68,9 +68,3 @@ class PassGenerator:
                 password += random_choice
 
         return password
-
-
-if __name__ == '__main__':
-    gen = PassGenerator(0, True, True, True, True)
-    random_password = gen.generate_password()
-    print(None == "")

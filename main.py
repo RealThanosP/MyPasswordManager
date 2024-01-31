@@ -76,7 +76,7 @@ class MainApp(ctk.CTk):
     def generatorSection(self):
         '''Defines the password generator UI and places it into the main frame'''
         # Generator Section frame
-        self.frameGenerator = ctk.CTkFrame(master=self.frame)
+        self.frameGenerator = ctk.CTkFrame(master=self.frame, corner_radius=0)
 
         #Top frame:
         self.frameGeneratorTopBar = ctk.CTkFrame(master=self.frameGenerator, corner_radius=0)
@@ -258,7 +258,7 @@ class MainApp(ctk.CTk):
     def savePasswordSection(self):
         
         # Main frame
-        self.frameSave = ctk.CTkFrame(master=self.frame)
+        self.frameSave = ctk.CTkFrame(master=self.frame, corner_radius=0)
         self.frameSave.pack(side="left", fill="y")
 
         #Title label
@@ -307,8 +307,16 @@ class MainApp(ctk.CTk):
         
     def saveAccount(self):
         '''Saves inputed account info into a database, using encryption for the data'''
-        pass
+        username = self.saveUsernameEntry.get()
+        password = self.savePasswordEntry.get()
+        service = self.saveServiceEntry.get()
+
+        # Encrypt the password and username 
+
+        # Save it into a database
+
         
+
 if __name__ == '__main__':
     app = MainApp()
     app.mainloop()
