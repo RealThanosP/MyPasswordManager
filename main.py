@@ -2,7 +2,8 @@ import customtkinter as ctk
 from PIL import Image
 from PassGen import PassGenerator
 import pyperclip
-
+import encryption
+import database
 #Constants
 # Window
 WIN_WIDTH = 600
@@ -37,7 +38,7 @@ GENERATOR_ENTRY_WIDTH = WIN_WIDTH-4.9*BUTTON_SIZE[0]
 SAVE_ENTRY_WIDTH = 250
 
 SAVE_TEXT_BOX_HEIGHT = 100
-
+SAVE_COMBOBOX_SIZE = (150, 30)
 class MainApp(ctk.CTk):
 
     def __init__(self):
@@ -127,7 +128,6 @@ class MainApp(ctk.CTk):
         
         self.frameGeneratorSettings = ctk.CTkFrame(master=self.frameGenerator, corner_radius=0)
 
-        
         # Checkbox variables:
         self.easyToRememberVar = ctk.StringVar(value=False)
         self.hasLettersVar = ctk.StringVar(value=False)
@@ -254,7 +254,7 @@ class MainApp(ctk.CTk):
         generated_password = self.generatorEntry.get()
         pyperclip.copy(generated_password)
   
-    # Saving password
+    # Saving password ##DONE##
     def savePasswordSection(self):
         
         # Main frame
@@ -278,7 +278,8 @@ class MainApp(ctk.CTk):
         self.savePasswordEntry = ctk.CTkEntry(master = self.frameSave,
                                                 width=SAVE_ENTRY_WIDTH,
                                                 font=(FONT_NAME,FONT_SIZE_ENTRIES),
-                                                placeholder_text="Pasword:")
+                                                placeholder_text="Password:",
+                                                show="*")
         self.savePasswordEntry.pack(pady=PADDING_TEXT, padx=PADDING_TEXT)
 
         #Service entry:
@@ -287,12 +288,25 @@ class MainApp(ctk.CTk):
                                                 font=(FONT_NAME,FONT_SIZE_ENTRIES),
                                                 placeholder_text="Service:")
         self.saveServiceEntry.pack(pady=PADDING_TEXT, padx=PADDING_TEXT)
+
         # notes on the account (optional kind of intresting concept)
         self.saveNotes = ctk.CTkTextbox(master=self.frameSave,
                                         font=(FONT_NAME, FONT_SIZE_LABELS),
                                         width=SAVE_ENTRY_WIDTH, height=SAVE_TEXT_BOX_HEIGHT)
-        self.saveNotes.insert(0.0, "Notes: ")
+        self.saveNotes.insert(0.0, "Note: ")
+        self.saveNotes.bind("<FocusIn>", lambda event: self.saveNotes.delete(0.0, "end"))
         self.saveNotes.pack()
+
+        # Combobox with all the vaults already created
+        vaults = database.get_all_vaults()
+        self.saveVaultComboBox = ctk.CTkComboBox(master=self.frameSave,
+                                                 values=vaults,
+                                                 width=SAVE_COMBOBOX_SIZE[0], height=SAVE_COMBOBOX_SIZE[1],
+                                                 font=(FONT_NAME, FONT_SIZE_LABELS),
+                                                 button_color=BUTTON_COLOR,
+                                                 border_color=BUTTON_COLOR,
+                                                 button_hover_color=BUTTON_COLOR_ON_HOVER)
+        self.saveVaultComboBox.pack(side="right")
 
         # Save Password button
         self.saveButton = ctk.CTkButton(master=self.frameSave,
@@ -307,15 +321,44 @@ class MainApp(ctk.CTk):
         
     def saveAccount(self):
         '''Saves inputed account info into a database, using encryption for the data'''
+        database.create_vault("Start Vault")
+        
+        # Takes the input from the fields
         username = self.saveUsernameEntry.get()
         password = self.savePasswordEntry.get()
         service = self.saveServiceEntry.get()
+        notes = self.saveNotes.get(0.0, "end")
 
-        # Encrypt the password and username 
+        element_list = [username, password, service, notes]
 
-        # Save it into a database
-
+        # Checks for empty cells/input fields
+        if not (username and password and service):
+            self.errorLabelGenerator.configure(text="Please fill out all the \nfields before saving.")
+            return 
         
+        # Select the vault
+        selected_vault = self.saveVaultComboBox.get()
+
+        # Encryption key
+        key = encryption.generate_key()
+
+        # Encrypt the data_list with the key and store the
+        # encrypted versiom into the database
+        stored = database.store_account(key, selected_vault, element_list)
+        already_stored_error_msg = "You have this\naccount already saved."
+        success_error_msg = "You successfully\nsaved this account."
+
+        # Checks the wanted error message based on the status of the storing
+        if stored == None:
+            self.errorLabelGenerator.configure(text=already_stored_error_msg)
+        elif stored:
+            self.errorLabelGenerator.configure(text=success_error_msg)
+
+        # Resets the entries
+        self.saveUsernameEntry.delete(0, "end")
+        self.savePasswordEntry.delete(0, "end")
+        self.saveServiceEntry.delete(0, "end")
+        self.saveNotes.delete(0.0, "end")
 
 if __name__ == '__main__':
     app = MainApp()
