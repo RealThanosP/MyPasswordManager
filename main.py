@@ -1,12 +1,16 @@
+
 import customtkinter as ctk
+import tkinter as tk
+from tkinter import ttk
 from PIL import Image
 from PassGen import PassGenerator
 import pyperclip
 import encryption
 import database
+from VaultWindow import VaultPopUp
 #Constants
 # Window
-WIN_WIDTH = 600
+WIN_WIDTH = 700
 WIN_HEIGHT = 550
 
 # Paths
@@ -14,9 +18,16 @@ GENERATOR_BUTTON_IMG = "Images/refresh.png"
 COPY_BUTTON_IMG = "Images/copy.png"
 APP_ICON = "Images/lock_icon.ico"
 SAVE_IMG = "Images/save.png"
+ADD_VAULT_IMG = "Images/add.png"
+ENTER_VAULT_IMG = "Images/enter.png"
+SEE_PASSWORD_IMG = "Images/see.png"
+HIDE_PASSWORD_IMG = "Images/hide.png"
+TRASH_CAN_IMG = "Images/trash-can.png"
 
 BUTTON_SIZE = (25,25)
+BUTTON_MEDIUM_SIZE = (40,40)
 BUTTON_BIG_SIZE = (100, 120)
+
 # Fonts and colors
 BUTTON_COLOR = "#333333"
 BUTTON_TEXT_COLOR = "#AAAAAA"
@@ -24,6 +35,7 @@ BUTTON_COLOR_ON_HOVER = "#555555"
 FONT_NAME = "Segui UI"
 
 FONT_SIZE_LABELS = 15
+FONT_SIZE_COMBOBOX = 13
 FONT_SIZE_BUTTONS = 15
 FONT_SIZE_ENTRIES = 17
 FONT_SIZE_SUB_TITLES = 20
@@ -32,13 +44,23 @@ FONT_SIZE_TITLES = 24
 # Paddings
 PADDING_CHECKBOX = 5
 PADDING_TEXT = 10
-PADDING_SLIDER = 20
+PADDING_SLIDER = 60
+PADDING_SLIDER_LABEL = 20
+PADDING_VAULT_ENTRY = 13
 
 GENERATOR_ENTRY_WIDTH = WIN_WIDTH-4.9*BUTTON_SIZE[0]
 SAVE_ENTRY_WIDTH = 250
 
 SAVE_TEXT_BOX_HEIGHT = 100
 SAVE_COMBOBOX_SIZE = (150, 30)
+
+SEE_ENTRY_WIDTH = 240
+SEE_COMBOBOX_SIZE = (80, 33)
+
+ADD_ENTRY_WIDTH = 300
+
+DELETE_COMBOBOX_SIZE = (250, 33)
+
 class MainApp(ctk.CTk):
 
     def __init__(self):
@@ -50,6 +72,7 @@ class MainApp(ctk.CTk):
 
         ctk.set_appearance_mode("System")  # Modes: system (default), light, dark
         ctk.set_default_color_theme("dark-blue")
+
         # Main frame
         self.frame = ctk.CTkFrame(master=self,
                                   width=WIN_WIDTH, height=WIN_HEIGHT,
@@ -70,14 +93,44 @@ class MainApp(ctk.CTk):
         self.saveIMG = ctk.CTkImage(dark_image=Image.open(SAVE_IMG),
                                     light_image=Image.open(SAVE_IMG),
                                     size=BUTTON_SIZE)
+        
+        # Add vault button IMG
+        self.addVaultIMG = ctk.CTkImage(dark_image=Image.open(ADD_VAULT_IMG),
+                                        light_image=Image.open(ADD_VAULT_IMG),
+                                        size=BUTTON_MEDIUM_SIZE)
+        
+        # Enter vault button IMG
+        self.enterVaultIMG = ctk.CTkImage(dark_image=Image.open(ENTER_VAULT_IMG),
+                                        light_image=Image.open(ENTER_VAULT_IMG),
+                                        size=BUTTON_SIZE)
+        
+        # See password buttom IMG
+        self.showPassIMG = ctk.CTkImage(dark_image=Image.open(SEE_PASSWORD_IMG),
+                                       light_image=Image.open(SEE_PASSWORD_IMG),
+                                       size=BUTTON_SIZE)
+        
+        # Hide password button IMG
+        self.hidePassIMG = ctk.CTkImage(dark_image=Image.open(HIDE_PASSWORD_IMG),
+                                       light_image=Image.open(HIDE_PASSWORD_IMG),
+                                       size=BUTTON_SIZE)
+        
+        # Delete password button IMG
+        self.deleteVaultIMG = ctk.CTkImage(dark_image=Image.open(TRASH_CAN_IMG),
+                                       light_image=Image.open(TRASH_CAN_IMG),
+                                       size=BUTTON_SIZE)
+
         self.generatorSection()
         self.savePasswordSection()
+        self.seeVaultSection()
+        self.addVaultSection()
+        self.deleteVaultSection()
 
     # Pass generator section ##DONE##
     def generatorSection(self):
         '''Defines the password generator UI and places it into the main frame'''
         # Generator Section frame
         self.frameGenerator = ctk.CTkFrame(master=self.frame, corner_radius=0)
+        self.frameGenerator.pack(fill="x")
 
         #Top frame:
         self.frameGeneratorTopBar = ctk.CTkFrame(master=self.frameGenerator, corner_radius=0)
@@ -85,7 +138,7 @@ class MainApp(ctk.CTk):
 
         #Title label for generator
         self.generatorLabel = ctk.CTkLabel(master=self.frameGeneratorTopBar,
-                                           text="Your Password is:",
+                                           text="Generate Random Password: ",
                                            font=(FONT_NAME, FONT_SIZE_TITLES))
         self.generatorLabel.grid(row=0, column=0, columnspan=3)
 
@@ -127,6 +180,7 @@ class MainApp(ctk.CTk):
         #Checkbox/Settitngs frame
         
         self.frameGeneratorSettings = ctk.CTkFrame(master=self.frameGenerator, corner_radius=0)
+        self.frameGeneratorSettings.pack(fill="x")
 
         # Checkbox variables:
         self.easyToRememberVar = ctk.StringVar(value=False)
@@ -185,18 +239,15 @@ class MainApp(ctk.CTk):
         self.sliderLabel = ctk.CTkLabel(master=self.frameGeneratorSettings,
                                           text="25", justify="center",
                                           font=(FONT_NAME, FONT_SIZE_LABELS))
-        self.sliderLabel.grid(row=3, column=1, rowspan=4, padx=PADDING_SLIDER)
+        self.sliderLabel.grid(row=3, column=1, rowspan=4, padx=PADDING_SLIDER_LABEL)
 
         #Error Label
         self.errorLabelGenerator = ctk.CTkLabel(master=self.frameGeneratorSettings, 
                                                 text="",
                                                 font=(FONT_NAME, FONT_SIZE_LABELS),
                                                 justify="center")
-        self.errorLabelGenerator.grid(row=0, column=2, sticky="e", rowspan=3)
-
-        self.frameGenerator.pack(fill="x")
-        self.frameGeneratorSettings.pack(fill="x")
-
+        self.errorLabelGenerator.grid(row=0, column=2, sticky="e", rowspan=4)
+        
     def slidingLength(self, value):
         '''Handles the change of values and colors of both the slider and the progressBar'''
         # Makes the slider feel more cut rather that a scroller
@@ -256,7 +307,7 @@ class MainApp(ctk.CTk):
   
     # Saving password ##DONE##
     def savePasswordSection(self):
-        
+        '''Defines the section of the password saving in the main frame'''
         # Main frame
         self.frameSave = ctk.CTkFrame(master=self.frame, corner_radius=0)
         self.frameSave.pack(side="left", fill="y")
@@ -303,9 +354,13 @@ class MainApp(ctk.CTk):
                                                  values=vaults,
                                                  width=SAVE_COMBOBOX_SIZE[0], height=SAVE_COMBOBOX_SIZE[1],
                                                  font=(FONT_NAME, FONT_SIZE_LABELS),
+                                                 dropdown_fg_color=BUTTON_COLOR,
+                                                 dropdown_font=(FONT_NAME, FONT_SIZE_COMBOBOX),
                                                  button_color=BUTTON_COLOR,
                                                  border_color=BUTTON_COLOR,
-                                                 button_hover_color=BUTTON_COLOR_ON_HOVER)
+                                                 button_hover_color=BUTTON_COLOR_ON_HOVER,
+                                                 state="readonly")
+        
         self.saveVaultComboBox.pack(side="right")
 
         # Save Password button
@@ -333,17 +388,24 @@ class MainApp(ctk.CTk):
 
         # Checks for empty cells/input fields
         if not (username and password and service):
-            self.errorLabelGenerator.configure(text="Please fill out all the \nfields before saving.")
+            self.errorLabelGenerator.configure(text="Please fill out all the\nfields before saving.")
             return 
         
         # Select the vault
         selected_vault = self.saveVaultComboBox.get()
+
+        if not selected_vault:
+            self.errorLabelGenerator.configure(text="Please choose a vault\nto store the password")
+            return
 
         # Encryption key
         key = encryption.generate_key()
 
         # Encrypt the data_list with the key and store the
         # encrypted versiom into the database
+        all_vault_names = database.get_all_vaults()
+        self.saveVaultComboBox.configure(values=all_vault_names)
+        self.seeVaultComboBox.configure(values=all_vault_names)
         stored = database.store_account(key, selected_vault, element_list)
         already_stored_error_msg = "You have this\naccount already saved."
         success_error_msg = "You successfully\nsaved this account."
@@ -359,6 +421,202 @@ class MainApp(ctk.CTk):
         self.savePasswordEntry.delete(0, "end")
         self.saveServiceEntry.delete(0, "end")
         self.saveNotes.delete(0.0, "end")
+
+    # See saved password of the diff vaults
+    def seeVaultSection(self):
+        '''Defines the section of the vault revealing the accounts saved in the database'''
+        # Main frame 
+        self.frameSeePass = ctk.CTkFrame(master=self.frame, corner_radius=0,)
+        self.frameSeePass.pack(fill="x")
+        
+        # Title label
+        self.seeTitleLabel = ctk.CTkLabel(master=self.frameSeePass,
+                                          text="Enter in your Vaults: ",
+                                          font=(FONT_NAME, FONT_SIZE_TITLES))
+        self.seeTitleLabel.pack(pady=PADDING_TEXT)
+
+        # Vault name selection box
+        vaults = database.get_all_vaults()
+        self.seeVaultComboBox = ctk.CTkComboBox(master=self.frameSeePass,
+                                                 values=vaults,
+                                                 width=SEE_COMBOBOX_SIZE[0], height=SEE_COMBOBOX_SIZE[1],
+                                                 font=(FONT_NAME, FONT_SIZE_LABELS),
+                                                 dropdown_fg_color=BUTTON_COLOR,
+                                                 dropdown_font=(FONT_NAME, FONT_SIZE_COMBOBOX),
+                                                 button_color=BUTTON_COLOR,
+                                                 border_color=BUTTON_COLOR,
+                                                 button_hover_color=BUTTON_COLOR_ON_HOVER,
+                                                 state="readonly")
+        self.seeVaultComboBox.pack(side="right", padx=5)
+
+        # Show vaults button 
+        self.vaultWindowApp = None
+        self.seeEnterVaultButton = ctk.CTkButton(master=self.frameSeePass,
+                                                 image=self.enterVaultIMG,
+                                                 width=BUTTON_SIZE[0], height=BUTTON_SIZE[1],
+                                                 text="", fg_color=BUTTON_COLOR,
+                                                 hover_color=BUTTON_COLOR_ON_HOVER,
+                                                 command=self.showVaultWindow)
+        self.seeEnterVaultButton.pack(side="right")
+
+        # Vault password entry (secret phrase for each vault)
+        self.seeVaultPassEntry = ctk.CTkEntry(master=self.frameSeePass,
+                                          width=SEE_ENTRY_WIDTH,
+                                          font=(FONT_NAME, FONT_SIZE_ENTRIES),
+                                          placeholder_text="Vault Secret Password:",
+                                          show="*")
+        self.seeVaultPassEntry.pack(side="left", padx=PADDING_TEXT, pady=PADDING_TEXT)
+
+        # Hide/Show password button
+        self.seeHidePassButton = ctk.CTkButton(master=self.frameSeePass,
+                                               width=BUTTON_SIZE[0], height=BUTTON_SIZE[1],
+                                               text="", image=self.showPassIMG,
+                                               fg_color=BUTTON_COLOR, hover_color=BUTTON_COLOR_ON_HOVER,
+                                               command=self.hide_show_password)
+        self.seeHidePassButton.pack(side="right")
+
+    def closeVaultWindow(self):
+        self.vaultWindowApp.destroy()
+        self.vaultWindowApp = None
+
+    def showVaultWindow(self):
+        secret_password = self.seeVaultPassEntry.get()
+        
+        if self.vaultWindowApp is None:
+            self.vaultWindowApp = VaultPopUp()
+            self.vaultWindowApp.title(self.seeVaultComboBox.get())
+            self.vaultWindowApp.protocol("WM_DELETE_WINDOW", self.closeVaultWindow)
+        else:
+            print("It already exists")
+        
+    def hide_show_password(self):
+        state = self.seeVaultPassEntry.cget("show")
+        if state == "*":
+            self.seeVaultPassEntry.configure(show="")
+            self.seeHidePassButton.configure(image=self.hidePassIMG)
+        else:
+            self.seeVaultPassEntry.configure(show="*")
+            self.seeHidePassButton.configure(image=self.showPassIMG)
+
+    # Add new vaults ##DONE
+    def addVaultSection(self):
+        # Main frame
+        self.frameAddVault = ctk.CTkFrame(master=self.frame, corner_radius=0)
+        self.frameAddVault.pack(fill="both")
+
+        # Title of the section
+        self.addVaultTitleLabel = ctk.CTkLabel(master=self.frameAddVault,
+                                               text="Make a new vault:",
+                                               font=(FONT_NAME, FONT_SIZE_TITLES))
+        self.addVaultTitleLabel.pack(side="top", pady=PADDING_TEXT)
+
+        # Add vault button
+        self.addVaultButton = ctk.CTkButton(master=self.frameAddVault,
+                                               text="",
+                                               width=BUTTON_SIZE[0], height=BUTTON_SIZE[1],
+                                               fg_color=BUTTON_COLOR, hover_color=BUTTON_COLOR_ON_HOVER,
+                                               corner_radius=5,
+                                               image=self.addVaultIMG,
+                                               command=self.addVault)
+        self.addVaultButton.pack(side="right", padx=30, pady=PADDING_TEXT)
+
+        # Add vault enty 
+        self.addVaultNameEntry = ctk.CTkEntry(master=self.frameAddVault,
+                                              width=ADD_ENTRY_WIDTH,
+                                              font=(FONT_NAME,FONT_SIZE_ENTRIES),
+                                              placeholder_text="Vault name: ")
+        self.addVaultNameEntry.pack(pady=PADDING_TEXT)
+
+        # Add vault secret password
+        self.addVaultPassEntry = ctk.CTkEntry(master=self.frameAddVault,
+                                         width=ADD_ENTRY_WIDTH,
+                                         font=(FONT_NAME,FONT_SIZE_ENTRIES),
+                                         placeholder_text="Secret password: ",
+                                         show="*")
+        self.addVaultPassEntry.pack(pady=PADDING_TEXT)
+    
+    def addVault(self):
+        # Take data from the entries
+        vault_name = self.addVaultNameEntry.get()
+        vault_pass = self.addVaultPassEntry.get()
+
+        if not (vault_name and vault_pass):
+            self.errorLabelGenerator.configure(text="Please enter both\nname and password\nto the vault.")
+            self.addVaultNameEntry.delete(0, "end")
+            self.addVaultPassEntry.delete(0, "end")
+            return
+        
+        # Check for any existing vault name like that
+        all_vaults = database.get_all_vaults()
+        if database.db_name(vault_name) in all_vaults:
+            self.errorLabelGenerator.configure(text="This vault\nalready exist.")
+            self.addVaultNameEntry.delete(0, "end")
+            self.addVaultPassEntry.delete(0, "end")
+            return 
+         
+        # Create the info of the vault in the saved json
+        database.create_vault_pass(vault_name, vault_pass)
+
+        # Create the table in the database
+        database.create_vault(vault_name)
+        new_vault_list = database.get_all_vaults()
+
+        self.seeVaultComboBox.configure(values=new_vault_list)
+        self.saveVaultComboBox.configure(values=new_vault_list)
+        self.deleteVaultComboBox.configure(values=new_vault_list)
+        self.addVaultNameEntry.delete(0, "end")
+        self.addVaultPassEntry.delete(0, "end")
+
+    # Delete vaults
+    def deleteVaultSection(self):
+        
+        # Main frame 
+        self.frameDelete = ctk.CTkFrame(master=self.frame, corner_radius=0)
+        self.frameDelete.pack(fill="both", expand=True)
+
+        # Title Label
+        self.deleteTitleLabel = ctk.CTkLabel(master=self.frameDelete,
+                                             text="Delete Vaults:",
+                                             font=(FONT_NAME, FONT_SIZE_TITLES))
+        self.deleteTitleLabel.pack()
+
+        # Combobox for vault selection
+        vaults = database.get_all_vaults()
+        self.deleteVaultComboBox = ctk.CTkComboBox(master=self.frameDelete,
+                                                    values=vaults,
+                                                    width=DELETE_COMBOBOX_SIZE[0], height=DELETE_COMBOBOX_SIZE[1],
+                                                    font=(FONT_NAME, FONT_SIZE_LABELS),
+                                                    dropdown_fg_color=BUTTON_COLOR,
+                                                    dropdown_font=(FONT_NAME, FONT_SIZE_COMBOBOX),
+                                                    button_color=BUTTON_COLOR,
+                                                    border_color=BUTTON_COLOR,
+                                                    button_hover_color=BUTTON_COLOR_ON_HOVER,
+                                                    state="readonly")
+        self.deleteVaultComboBox.pack(side="left", padx=(80,0))
+
+        # Delete button
+        self.deleteVaultButton = ctk.CTkButton(master=self.frameDelete,
+                                               text="", image=self.deleteVaultIMG,
+                                               fg_color=BUTTON_COLOR, hover_color=BUTTON_COLOR_ON_HOVER,
+                                               width=BUTTON_SIZE[0], height=BUTTON_SIZE[1],
+                                               command=self.deleteVault)
+        self.deleteVaultButton.pack(side="right",padx=(0,55))
+
+        # Secret Password entry
+        self.deletePasswordEntry = ctk.CTkEntry(master=self.frameDelete,
+                                                font=(FONT_NAME,FONT_SIZE_ENTRIES),
+                                                placeholder_text="Secret Password of the vault")
+        self.deletePasswordEntry.pack(side="bottom")
+
+    def deleteVault(self):
+        selected_vault = database.db_name(self.deleteVaultComboBox.get())
+        database.drop_table(selected_vault)
+
+        self.deleteVaultComboBox.set("")
+        self.deleteVaultComboBox.configure(values=database.get_all_vaults())
+        self.seeVaultComboBox.configure(values=database.get_all_vaults())
+        self.saveVaultComboBox.configure(values=database.get_all_vaults())
+
 
 if __name__ == '__main__':
     app = MainApp()
