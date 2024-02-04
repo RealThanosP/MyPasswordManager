@@ -1,8 +1,15 @@
 import encryption
 import sqlite3
 import os
+import json
+import hashlib
 
 # NOTE: The name of the vault should not have spaces
+def custom_hash(input_string):
+    sha256 = hashlib.sha256()
+    sha256.update(input_string.encode('utf-8'))
+    return sha256.hexdigest()
+
 def db_name(name:str):
     '''Returns the name version that can be a table name in the db'''
     name_elements = name.split(" ")
@@ -16,6 +23,14 @@ def db_path():
 
     DB_PATH = os.path.join(DB_FOLDER, DB_NAME)
     return DB_PATH
+
+def passwords_path():
+    '''Returns the path of the file of the hashed password tide to the vaults'''
+    DB_FOLDER = encryption.db_folder()
+    FILE_NAME = "Passwords.json"
+
+    PASS_PATH = os.path.join(DB_FOLDER, FILE_NAME)
+    return PASS_PATH
 
 def get_all_vaults():
     '''Returns a nested list with all the vaults in the database'''
@@ -45,6 +60,25 @@ def create_vault(vault_name:str):
         )''')
         conn.commit()
 
+def create_vault_pass(vault_name, secret_pass):
+    '''Creates a json in the same folder as the database with the hashed passwords.
+    Returns the data that was stored'''
+    data = {vault_name:custom_hash(secret_pass)}
+    if not os.path.exists(passwords_path()):
+        with open(passwords_path(), "w") as file:
+            json.dump(data, file, indent=2)
+        return data
+    
+    with open(passwords_path(), "r") as file:
+        saved = json.load(file)
+    
+    saved.update(data)
+
+    with open(passwords_path(), "w") as file:
+        json.dump(saved, file, indent=2)
+    
+    return data
+
 def check_for_dublicate_account(vault_name:str, username:str, service:str):
     '''Returns True when there is another account in the db and False when there is not another acc'''
     with sqlite3.connect(db_path()) as conn:
@@ -65,6 +99,15 @@ def check_for_dublicate_account(vault_name:str, username:str, service:str):
             return True
         
         return False
+
+def check_vault_password(vault_name, secret_pass):
+    with open(passwords_path(), "r") as file:
+        data = json.load(file)
+
+    if data[vault_name] == custom_hash(secret_pass):
+        return True
+
+    return False
 
 def store_account(key:bytes, vault_name:str, decrypted_account:list):
     '''Stores the encrypted account details with the key. Returns None when the account is not saved and True when it is.'''
@@ -110,8 +153,17 @@ def drop_table(table_name):
     '''Delete the table you insert'''
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
+        cur.execute(f'''DROP TABLE {db_name(table_name)}''')
+    
+    with open(passwords_path(), "r") as file:
+        data = json.load(file)
+    
+    data.pop(table_name)
 
-        cur.execute(f'''DROP TABLE {table_name}''')
+    with open(passwords_path(), "w") as file:
+        json.dump(data, file, indent=2)
+    
+    return table_name
 
 def drop_all_tables():
     '''Deletes all the tables in the database'''
@@ -133,16 +185,6 @@ def drop_all_tables():
         # Commit the changes
         conn.commit()
 
-# Just for testing
-if __name__ == '__main__':
-    vault_name = "Start Vault"
-    account = ["123", "123asdasd", "1232", "123asdasd"]
-
-    key = encryption.generate_key()
-
-    create_vault(vault_name)
-    store_account(key, vault_name, account)
-    print(get_vault(vault_name))
 
 
 
