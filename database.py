@@ -60,7 +60,7 @@ def create_vault(vault_name:str):
         )''')
         conn.commit()
 
-def create_vault_pass(vault_name, secret_pass):
+def create_vault_pass(vault_name:str, secret_pass:str):
     '''Creates a json in the same folder as the database with the hashed passwords.
     Returns the data that was stored'''
     data = {vault_name:custom_hash(secret_pass)}
@@ -149,7 +149,7 @@ def get_username_and_service_values(vault_name:str):
     
     return wanted
 
-def drop_table(table_name):
+def drop_table(table_name:str):
     '''Delete the table you insert'''
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
@@ -184,8 +184,6 @@ def drop_all_tables():
 
         # Commit the changes
         conn.commit()
-
-
 
 
 
