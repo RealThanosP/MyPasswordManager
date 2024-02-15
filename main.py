@@ -6,7 +6,6 @@ from PassGen import PassGenerator
 import pyperclip
 import encryption
 import database
-from VaultWindow import VaultPopUp
 #Constants
 # Window
 WIN_WIDTH = 700
@@ -57,6 +56,8 @@ FONT_SIZE_TITLES = 24
 PADDING_CHECKBOX = 5
 PADDING_TEXT = 10
 PADDING_SLIDER = 60
+PADDING_SAVE_GAP = 50
+PADDING_COMBOBOX = 30
 PADDING_SLIDER_LABEL = 20
 PADDING_VAULT_ENTRY = 13
 
@@ -332,7 +333,7 @@ class MainApp(ctk.CTk):
         pyperclip.copy(generated_password)
   
     # Saving password ##DONE##
-    def savePasswordSection(self):
+    def savePasswordSection (self):
         '''Defines the section of the password saving in the main frame'''
         # Main frame
         self.frameSave = ctk.CTkFrame(master=self.frame, corner_radius=0,
@@ -360,20 +361,20 @@ class MainApp(ctk.CTk):
                                                 show="*")
         self.savePasswordEntry.pack(pady=PADDING_TEXT, padx=PADDING_TEXT)
 
-        #Service entry:
+        # Service entry:
         self.saveServiceEntry = ctk.CTkEntry(master = self.frameSave,
                                                 width=SAVE_ENTRY_WIDTH,
                                                 font=(FONT_NAME,FONT_SIZE_ENTRIES),
                                                 placeholder_text="Service:")
         self.saveServiceEntry.pack(pady=PADDING_TEXT, padx=PADDING_TEXT)
 
-        # notes on the account (optional kind of interesting concept)
-        self.saveNotes = ctk.CTkTextbox(master=self.frameSave,
-                                        font=(FONT_NAME, FONT_SIZE_LABELS),
-                                        width=SAVE_ENTRY_WIDTH, height=SAVE_TEXT_BOX_HEIGHT)
-        self.saveNotes.insert(0.0, "Note: ")
-        self.saveNotes.bind("<FocusIn>", lambda event: self.saveNotes.delete(0.0, "end"))
-        self.saveNotes.pack()
+        # Vault pass entry:
+        self.saveVaultPassEntry = ctk.CTkEntry(master=self.frameSave, 
+                                               width=SAVE_ENTRY_WIDTH,
+                                               font=(FONT_NAME,FONT_SIZE_ENTRIES),
+                                               placeholder_text="Secret vault password: ",
+                                               show="*")
+        self.saveVaultPassEntry.pack(pady=(PADDING_SLIDER,0), padx=PADDING_TEXT)
 
         # Combobox with all the vaults already created
         vaults = database.get_all_vaults()
@@ -387,7 +388,7 @@ class MainApp(ctk.CTk):
                                                  border_color=BUTTON_COLOR,
                                                  button_hover_color=BUTTON_COLOR_ON_HOVER,
                                                  state="readonly")
-        self.saveVaultComboBox.pack(side="right", padx=(5,10))
+        self.saveVaultComboBox.pack(side="right", padx=(PADDING_CHECKBOX,PADDING_TEXT))
 
         # Save Password button
         self.saveButton = ctk.CTkButton(master=self.frameSave,
@@ -395,22 +396,21 @@ class MainApp(ctk.CTk):
                                         font=(FONT_NAME,FONT_SIZE_ENTRIES),
                                         fg_color=BUTTON_COLOR, hover_color=BUTTON_COLOR_ON_HOVER,
                                         text_color=BUTTON_TEXT_COLOR,
-                                        width=BUTTON_BIG_SIZE[0], height=BUTTON_BIG_SIZE[1],
+                                        width=BUTTON_SIZE[0], height=BUTTON_SIZE[1],
                                         image=self.saveIMG,
                                         command=self.saveAccount)
-        self.saveButton.pack(pady=PADDING_TEXT, padx=(10,0))
+        self.saveButton.pack(side="left", padx=(PADDING_TEXT,0))
         
     def saveAccount(self):
-        '''Saves inputed account info into a database, using encryption for the data'''
-        database.create_vault("Start Vault")
+        '''Saves account info into a database, using encryption for all the data.'''
         
         # Takes the input from the fields
         username = self.saveUsernameEntry.get()
         password = self.savePasswordEntry.get()
         service = self.saveServiceEntry.get()
-        notes = self.saveNotes.get(0.0, "end")
+        vault_pass = self.saveVaultPassEntry.get()
 
-        element_list = [username, password, service, notes]
+        account_list = [username, password, service]
 
         # Checks for empty cells/input fields
         if not (username and password and service):
@@ -423,31 +423,30 @@ class MainApp(ctk.CTk):
         if not selected_vault:
             self.errorLabelGenerator.configure(text="Please choose a vault\nto store the password")
             return
-
-        # Encryption key
-        key = encryption.generate_key()
-
+        
         # Encrypt the data_list with the key and store the
-        # encrypted versiom into the database
-        all_vault_names = database.get_all_vaults()
-        self.saveVaultComboBox.configure(values=all_vault_names)
-        self.seeVaultComboBox.configure(values=all_vault_names)
-        stored = database.store_account(key, selected_vault, element_list)
+        # encrypted version into the database
+        stored = database.save_account(selected_vault, vault_pass, account_list)
+
         already_stored_error_msg = "You have this\naccount already saved."
+        wrong_pass_error_msg = "Wrong vault password.\nPlease try again."
         success_error_msg = "You successfully\nsaved this account."
 
         # Checks the wanted error message based on the status of the storing
-        if stored == None:
+        if stored == "Password":
+            self.errorLabelGenerator.configure(text=wrong_pass_error_msg)
+        elif stored == "Already saved":
             self.errorLabelGenerator.configure(text=already_stored_error_msg)
-        elif stored:
+        else:
             self.errorLabelGenerator.configure(text=success_error_msg)
 
         # Resets the entries
         self.saveUsernameEntry.delete(0, "end")
         self.savePasswordEntry.delete(0, "end")
         self.saveServiceEntry.delete(0, "end")
-        self.saveNotes.delete(0.0, "end")
+        self.saveVaultPassEntry.delete(0, "end")
 
+        print(database.get_vault_accounts(selected_vault, vault_pass))
     # See saved password of the diff vaults ###DONE###
     # NOTE: The table window is NOT done
     def seeVaultSection(self):
@@ -503,10 +502,6 @@ class MainApp(ctk.CTk):
                                                fg_color=BUTTON_COLOR, hover_color=BUTTON_COLOR_ON_HOVER,
                                                command=self.hide_show_password)
         self.seeHidePassButton.pack(side="right", padx=(0,30))
-  
-    def closeVaultWindow(self):
-        self.vaultWindowApp.destroy()
-        self.vaultWindowApp = None
 
     def showVaultWindow(self):
         vault_pass = self.seeVaultPassEntry.get()
@@ -515,21 +510,17 @@ class MainApp(ctk.CTk):
         if not (vault_name and vault_pass):
             self.errorLabelGenerator.configure(text="Please select\na vault to open.")
             return
-        is_correct_pass = database.check_vault_password(vault_name, vault_pass)
+        is_correct_pass = database.is_correct_vault_pass(vault_name, vault_pass)
 
         if not is_correct_pass:
             self.errorLabelGenerator.configure(text="Wrong Password\nPlease try again.")
             self.seeVaultPassEntry.delete(0, "end")
             return
         
-        if self.vaultWindowApp is None:
-            self.seeVaultPassEntry.delete(0, "end")
-            self.vaultWindowApp = VaultPopUp(vault_name)
-            self.vaultWindowApp.title(self.seeVaultComboBox.get())
-            self.vaultWindowApp.protocol("WM_DELETE_WINDOW", self.closeVaultWindow)
-        else:
-            print("It already exists")
-        
+        self.destroy()
+        app = VaultPopUp(vault_name)
+        app.mainloop()     
+
     def hide_show_password(self):
         state = self.seeVaultPassEntry.cget("show")
         if state == "*":
@@ -607,25 +598,26 @@ class MainApp(ctk.CTk):
         
         # Check for any existing vault name like that
         all_vaults = database.get_all_vaults()
-        if database.db_name(vault_name) in all_vaults:
+        if database.show_name(vault_name) in all_vaults:
             self.errorLabelGenerator.configure(text="This vault\nalready exist.")
             self.addVaultNameEntry.delete(0, "end")
             self.addVaultPassEntry.delete(0, "end")
+            self.addVaultReEnterPassEntry.delete(0, "end")
             return
-         
-        # Create the info of the vault in the saved json
-        database.create_vault_pass(vault_name, vault_pass)
-        self.errorLabelGenerator.configure(text=f"{vault_name} vault has been\nsuccefully deleted.")
- 
-        # Create the table in the database
-        database.create_vault(vault_name)
+        
+        # Create the table with the  in the database
+        database.create_vault(vault_name, vault_pass)
+        self.errorLabelGenerator.configure(text=f"{vault_name} vault has been\nadded succefully.")
+        
+        
         new_vault_list = database.get_all_vaults()
-
         self.seeVaultComboBox.configure(values=new_vault_list)
         self.saveVaultComboBox.configure(values=new_vault_list)
         self.deleteVaultComboBox.configure(values=new_vault_list)
+
         self.addVaultNameEntry.delete(0, "end")
         self.addVaultPassEntry.delete(0, "end")
+        self.addVaultReEnterPassEntry.delete(0, "end")
 
     # Delete vaults
     def deleteVaultSection(self):
@@ -671,22 +663,189 @@ class MainApp(ctk.CTk):
         selected_vault = database.db_name(self.deleteVaultComboBox.get())
         vault_pass = self.deletePasswordEntry.get()
 
+        # Empty entry check
         if not (vault_pass and selected_vault):
             self.errorLabelGenerator.configure(text="Please select\na vault to delete.")
             return
-        is_correct_pass = database.check_vault_password(selected_vault, vault_pass)
+        
+        # Correct vault password check:
+        is_correct_pass = database.is_correct_vault_pass(selected_vault, vault_pass)
         if not is_correct_pass: 
             self.errorLabelGenerator.configure(text="Wrong vault password\nPlease try again.")
             self.deletePasswordEntry.delete(0, "end")
             return
-        database.drop_table(selected_vault)
+        
+        # Deleting:
+        database.drop_vault(selected_vault)
+        self.deletePasswordEntry.delete(0, "end")
         self.errorLabelGenerator.configure(text=f"The {selected_vault}\nvault has been\nsuccefully deleted")
 
+        # Reset the GUI entries and boxes
         self.deleteVaultComboBox.set("")
         self.deleteVaultComboBox.configure(values=database.get_all_vaults())
         self.seeVaultComboBox.configure(values=database.get_all_vaults())
         self.saveVaultComboBox.configure(values=database.get_all_vaults())
 
+class VaultPopUp(ctk.CTk):
+
+    def __init__(self, vault_name):
+        super().__init__()
+        self.name = vault_name
+        self.resizable(False,False)
+        self.title(f"{vault_name} Vault")
+        self.iconbitmap(APP_ICON)
+
+        # Main frame
+        self.frame = ctk.CTkFrame(master=self, corner_radius=0)
+        self.frame.pack(expand=True, fill="both")
+        
+        # Images
+        self.generatorIMG = ctk.CTkImage(dark_image=Image.open(GENERATOR_BUTTON_IMG),
+                                         light_image=Image.open(GENERATOR_BUTTON_IMG),
+                                         size=BUTTON_SIZE)
+        
+        # Copy Button Image
+        self.clipboardIMG = ctk.CTkImage(dark_image=Image.open(COPY_BUTTON_IMG),
+                                    light_image=Image.open(COPY_BUTTON_IMG),
+                                    size=BUTTON_SIZE)
+        
+        # Save button Image
+        self.saveIMG = ctk.CTkImage(dark_image=Image.open(SAVE_IMG),
+                                    light_image=Image.open(SAVE_IMG),
+                                    size=BUTTON_SIZE)
+        
+        # Add vault button IMG
+        self.addVaultIMG = ctk.CTkImage(dark_image=Image.open(ADD_VAULT_IMG),
+                                        light_image=Image.open(ADD_VAULT_IMG),
+                                        size=BUTTON_MEDIUM_SIZE)
+        
+        # Enter vault button IMG
+        self.enterVaultIMG = ctk.CTkImage(dark_image=Image.open(ENTER_VAULT_IMG),
+                                        light_image=Image.open(ENTER_VAULT_IMG),
+                                        size=BUTTON_SIZE)
+        
+        # See password button IMG
+        self.showPassIMG = ctk.CTkImage(dark_image=Image.open(SEE_PASSWORD_IMG),
+                                       light_image=Image.open(SEE_PASSWORD_IMG),
+                                       size=BUTTON_SIZE)
+        
+        # Hide password button IMG
+        self.hidePassIMG = ctk.CTkImage(dark_image=Image.open(HIDE_PASSWORD_IMG),
+                                       light_image=Image.open(HIDE_PASSWORD_IMG),
+                                       size=BUTTON_SIZE)
+        
+        # Delete password button IMG
+        self.deletePassIMG = ctk.CTkImage(dark_image=Image.open(TRASH_CAN_IMG),
+                                       light_image=Image.open(TRASH_CAN_IMG),
+                                       size=BUTTON_SIZE)
+
+        self.tableSection()
+        self.editVaultSection()
+
+    # Defines the table section
+    def tableSection(self):
+        # Table style 
+        style = ttk.Style()
+        style.theme_use("default")
+        style.configure("Treeview",
+                        background="#2a2d2e",
+                        foreground="white",
+                        rowheight=25,
+                        fieldbackground="#343638",
+                        bordercolor="#343638",
+                        borderwidth=0)
+        style.map('Treeview', background=[('selected', '#22559b')])
+        style.configure("Treeview.Heading",
+                        background="#565b5e",
+                        foreground="white",
+                        relief="flat")
+        style.map("Treeview.Heading",
+                    background=[('active', '#3484F0')])
+        
+        # Password table for the vault showing
+        heading_names = ("Username/Email", "Password", "Service", "Note")
+        
+        self.frametable = ctk.CTkFrame(master=self.frame)
+        self.frametable.pack(expand=True)
+
+        self.table = ttk.Treeview(master=self.frametable)
+        self.table.pack(padx=10, pady=10)
+        self.table["columns"] = heading_names 
+        
+        # Format the columns
+        self.table.column("#0", width=0, stretch="NO")
+        self.table.column(heading_names[0], width=150)
+        self.table.column(heading_names[1], width=150)
+        self.table.column(heading_names[2], width=200)
+        self.table.column(heading_names[3], width=200)
+
+        #Format the headings
+        self.table.heading("#0", text="", anchor="w")
+        self.table.heading(heading_names[0], text=heading_names[0], anchor="w", command= lambda: self.sort_column(heading_names[0], False))
+        self.table.heading(heading_names[1], text=heading_names[1], anchor="w", command= lambda: self.sort_column(heading_names[1], False))
+        self.table.heading(heading_names[2], text=heading_names[2], anchor="w", command= lambda: self.sort_column(heading_names[2], False))
+        self.table.heading(heading_names[3], text=heading_names[3], anchor="w", command= lambda: self.sort_column(heading_names[3], False))
+
+        self.tableFill()
+
+    def tableFill(self):
+        '''Fills up the table with the passwords of the user'''
+        if not self.name:
+            self.errorLabelGenerator.configure(text="Please select a\nvault to reveal")
+            return 
+        
+        vault = database.get_vault(self.name, False)
+        for element in vault:
+            self.table.insert("", "end", value=element)
+
+    def sort_column(self, column, reverse):
+        '''Sorts the content of the column when heading is pressed'''
+        data = [(self.table.set(child, column), child) for child in self.table.get_children("")]
+        data.sort(reverse=reverse)
+
+        for index, (val, child) in enumerate(data):
+            self.table.move(child, "", index)
+
+        self.table.heading(column, command=lambda: self.sort_column(column, not reverse))
+    
+    # Edit section of the password
+    def editVaultSection(self):
+
+        # Main frame
+        self.frameEdit = ctk.CTkFrame(master=self.frame)
+        self.frameEdit.pack()
+        
+        # Delete selected password button
+        self.deleteAccountButton = ctk.CTkButton(master=self.frameEdit, 
+                                                 text="Delete Account",
+                                                 image=self.deletePassIMG,
+                                                 fg_color=BUTTON_COLOR,
+                                                 hover_color=BUTTON_COLOR_ON_HOVER,
+                                                 font=(FONT_NAME, FONT_SIZE_BUTTONS),
+                                                 command=self.deleteAccount)
+        self.deleteAccountButton.pack()
+
+        # Copy password button
+
+    def deleteAccount(self):
+        vault_name = self.name
+        try:
+            selected_ID = self.table.selection()[0]
+        except IndexError:
+            return
+        selected_row = self.table.item(selected_ID)["values"]
+        selected_username = str(selected_row[0])
+        selected_service = str(selected_row[2])
+        database.delete_account(vault_name, selected_username, selected_service)
+        self.refresh_table()
+
+    def refresh_table(self):
+        for row in self.table.get_children():
+            self.table.delete(row)
+
+        self.tableFill()
+
 if __name__ == '__main__':
     app = MainApp()
+    # app = VaultPopUp("Thanos")
     app.mainloop()
