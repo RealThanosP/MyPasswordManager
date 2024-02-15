@@ -1,7 +1,6 @@
-import encryption
 import sqlite3
+import encryption
 import os
-import json
 import hashlib
 
 # NOTE: The name of the vault should not have spaces
@@ -13,177 +12,191 @@ def custom_hash(input_string):
 def db_name(name:str):
     '''Returns the name version that can be a table name in the db'''
     name_elements = name.split(" ")
-    shaped_name = "_".join(name_elements)
+    shaped_name = "_".join(name_elements).lower()
     return shaped_name
+
+def db_folder():
+    '''Returns the app folder in the Documents'''
+    #Get the user's User Folder
+    user_folder = os.path.expanduser(f"~/Documents")
+    app_folder = f"{user_folder}/Locker Pass"
+
+    if not os.path.exists(app_folder):
+        app_folder = os.makedirs(app_folder) 
+    
+    return app_folder
 
 def db_path():
     '''Returns the db path for the connection'''
     DB_NAME = "Account_services.db"
-    DB_FOLDER = encryption.db_folder()
+    DB_FOLDER = db_folder()
 
     DB_PATH = os.path.join(DB_FOLDER, DB_NAME)
     return DB_PATH
 
-def passwords_path():
-    '''Returns the path of the file of the hashed password tide to the vaults'''
-    DB_FOLDER = encryption.db_folder()
-    FILE_NAME = "Passwords.json"
+def show_name(name:str):
+    '''Returns a string that reverses the the effect of db_name'''
+    name_elements = name.split("_")
+    shaped_name = " ".join(name_elements).capitalize()
+    return shaped_name
 
-    PASS_PATH = os.path.join(DB_FOLDER, FILE_NAME)
-    return PASS_PATH
+def db_init():
+    create_vault_pass()
 
-def get_all_vaults():
-    '''Returns a nested list with all the vaults in the database'''
+def create_vault_table(vault_name:str):
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
 
-        cur.execute(f"SELECT name FROM sqlite_master WHERE type='table'")
-
-        vaults = cur.fetchall()
-        
-        for index, vault in enumerate(vaults):
-            vaults[index] = vault[0].replace("_", " ")
-
-    return vaults
-
-def create_vault(vault_name:str):
-    '''Initialize the vault table'''
-    with sqlite3.connect(db_path()) as conn:
-        cur = conn.cursor()
-        
         cur.execute(f'''CREATE TABLE IF NOT EXISTS {db_name(vault_name)}(
                     username TEXT,
                     password TEXT,
-                    service TEXT,
-                    notes TEXT,
-                    key TEXT
+                    service TEXT)''')
+
+    conn.commit()
+    return True
+
+def create_vault_pass():
+    with sqlite3.connect(db_path()) as conn:
+        cur = conn.cursor()
+        cur.execute(f'''CREATE TABLE IF NOT EXISTS Passwords (
+                name TEXT PRIMARY KEY,
+                password TEXT,
+                key TEXT
         )''')
-        conn.commit()
+    conn.commit()
 
-def create_vault_pass(vault_name:str, secret_pass:str):
-    '''Creates a json in the same folder as the database with the hashed passwords.
-    Returns the data that was stored'''
-    data = {vault_name:custom_hash(secret_pass)}
-    if not os.path.exists(passwords_path()):
-        with open(passwords_path(), "w") as file:
-            json.dump(data, file, indent=2)
-        return data
-    
-    with open(passwords_path(), "r") as file:
-        saved = json.load(file)
-    
-    saved.update(data)
+def create_vault(vault_name:str, vault_pass:str):
+    '''Creates the complete pair of new vault_table and security row in the Password_table'''
+    create_vault_table(vault_name)
+    save_vault_pass(vault_name, vault_pass)
 
-    with open(passwords_path(), "w") as file:
-        json.dump(saved, file, indent=2)
-    
-    return data
-
-def check_for_dublicate_account(vault_name:str, username:str, service:str):
-    '''Returns True when there is another account in the db and False when there is not another acc'''
+def save_vault_pass(vault_name:str, vault_pass:str):
+    '''Creates a row in the passwords table with the hashed password and the key tied up to the name of the vault'''
+    key = encryption.generate_key()
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
         
-        cur.execute(f'SELECT * FROM {db_name(vault_name)}')
-
-        acc = cur.fetchall()
-        accounts = encryption.decrypt_nested_list(acc)
-        name_service_db = []
-
-        for acc in accounts:
-            acc.pop(1)
-            acc.pop(-1)
-            name_service_db.append(acc)
+        cur.execute(f'''INSERT INTO Passwords (name, password, key) VALUES (?,?,?)''', (db_name(vault_name), custom_hash(vault_pass), key))
         
-        if [username, service] in name_service_db:
-            return True
-        
-        return False
-
-def check_vault_password(vault_name, secret_pass):
-    with open(passwords_path(), "r") as file:
-        data = json.load(file)
-
-    if data[vault_name] == custom_hash(secret_pass):
+        conn.commit()
         return True
+    
+def get_all_vaults():
+    '''Returns a list with all the vaults saved in the database'''
+    with sqlite3.connect(db_path()) as conn:
+        cur = conn.cursor()
+        query = '''SELECT name FROM sqlite_master WHERE type='table';'''
+        cur.execute(query)
 
+        vaults = cur.fetchall()
+        vaults = [show_name(x[0]) for x in vaults if (x[0] != "Passwords") and (x[0] != "sqlite_sequence")]
+
+        return vaults
+
+def get_vault_key(vault_name:str, vault_pass:str) -> bytes | None:
+    '''Returns the key used to encrypt a vault. Returns NONE when there is no such vault'''
+    with sqlite3.connect(db_path()) as conn:
+        cur = conn.cursor()
+
+        query = f'''SELECT key FROM Passwords WHERE name=? AND password=?'''
+        cur.execute(query, (db_name(vault_name), custom_hash(vault_pass)))
+
+        key = cur.fetchone()
+
+    # Check for the key found
+    if not key:
+        return None
+    key = key[0]
+
+    return key
+
+def is_correct_vault_pass(vault_name:str, vault_pass:str) -> True | False:
+    with sqlite3.connect(db_path()) as conn:
+        cur = conn.cursor()
+
+        cur.execute('''SELECT password FROM Passwords WHERE name=?''', (vault_name,))
+        hashed_pass = cur.fetchone()
+
+        if not hashed_pass:
+            # The vault doesn't exists
+            return False
+        
+        if custom_hash(vault_pass) == hashed_pass[0]:
+            return True
+
+def is_duplicate_account(vault_name:str, vault_pass:str, account_list:list):
+    '''Checks for duplicate account in db'''
+    accounts_in_vault = get_username_service(vault_name, vault_pass)
+    check_list = [account_list[0], account_list[2]]
+    if check_list in accounts_in_vault:
+        return True
     return False
 
-def store_account(key:bytes, vault_name:str, decrypted_account:list):
-    '''Stores the encrypted account details with the key. Returns None when the account is not saved and True when it is.'''
-    is_account_in_db = check_for_dublicate_account(vault_name, decrypted_account[0], decrypted_account[2])
-    encrypted_list = encryption.encrypt_list(key, decrypted_account)
-
+def save_account(vault_name:str, vault_pass:str, account_list:list):
+    '''Saves an encrypted list in the corresponding vault, with the key taken from the passwords vault. Returns the encrypted list'''
+    # Makes sure the password is correct to proceed 
+    is_correct_pass = is_correct_vault_pass(vault_name, vault_pass)
+    if not is_correct_pass:
+        return "Password"
+    
+    # Makes sure that there is no duplicate account in the vault
+    is_already_saved = is_duplicate_account(vault_name, vault_pass, account_list)
+    if is_already_saved:
+        return "Already saved"
+    
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
-        # Checks for dublicate accounts in the db
-        if is_account_in_db: 
-            return None
 
-        cur.execute(f'''INSERT INTO {db_name(vault_name)} VALUES (?,?,?,?,?)''', tuple(encrypted_list))
+        key = get_vault_key(vault_name, vault_pass)
+        encrypted_account_list = encryption.encrypt_list(key, account_list)
+        cur.execute(f'''INSERT INTO {db_name(vault_name)} (username, password, service) VALUES (?,?,?)''', encrypted_account_list)
+
         conn.commit()
+        return encrypted_account_list
 
-        return True
+def get_vault_accounts(vault_name:str, vault_pass:str):
+    '''Gets the contents of the vault'''
+    with sqlite3.connect(db_path()) as conn:
+        cur = conn.cursor()
 
-def get_vault(vault_name:str):
-    '''Returns a nested list with all the vaults accounts'''
+        key = get_vault_key(vault_name, vault_pass)
+        cur.execute(f'''SELECT * FROM {db_name(vault_name)}''')
+
+        contents = cur.fetchall()
+        dec_content = encryption.decrypt_nested_list(key, contents)
+
+        return dec_content
+
+def get_username_service(vault_name:str, vault_pass:str):
+    accounts_in_vault = get_vault_accounts(vault_name, vault_pass)
+
+    for account in accounts_in_vault:
+        account.pop(1)
+    return accounts_in_vault
+
+def drop_vault(vault_name:str):
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
         
-        cur.execute(f'''SELECT * FROM {db_name(vault_name)}''')
+        # is_correct_pass = is_correct_vault_pass(vault_name, vault_pass)
+        # if not is_correct_pass:
+        #     return
+        
+        cur.execute(f'''DROP TABLE {db_name(vault_name)}''')
+        cur.execute(f'''DELETE FROM Passwords WHERE name=?''', (db_name(vault_name), ))
 
-        accounts = cur.fetchall()
-        acc = encryption.decrypt_nested_list(accounts)
-             
         conn.commit()
 
-    return acc
-
-def get_username_and_service_values(vault_name:str):
-    vault = get_vault(vault_name)
-    wanted = []
-    for row in vault:
-        row.pop(1)
-        row.pop(2)
-        wanted.append(row)
+def drop_all_vaults():
+    vaults = get_all_vaults()
+    for vault in vaults:
+        drop_vault(vault)
     
-    return wanted
+if __name__ == '__main__':
+    vault_name = "Measdf  asdf sadf"
+    vault_pass = "!234"
+    create_vault(vault_name, vault_pass)
+    # with sqlite3.connect(db_path()) as conn:
+    #     cur = conn.cursor()
 
-def drop_table(table_name:str):
-    '''Delete the table you insert'''
-    with sqlite3.connect(db_path()) as conn:
-        cur = conn.cursor()
-        cur.execute(f'''DROP TABLE {db_name(table_name)}''')
-    
-    with open(passwords_path(), "r") as file:
-        data = json.load(file)
-    
-    data.pop(table_name)
-
-    with open(passwords_path(), "w") as file:
-        json.dump(data, file, indent=2)
-    
-    return table_name
-
-def drop_all_tables():
-    '''Deletes all the tables in the database'''
-    database_file = db_path()
-
-    # Connect to the SQLite database
-    with sqlite3.connect(database_file) as conn:
-        cursor = conn.cursor()
-
-        # Get the list of tables in the database
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = cursor.fetchall()
-
-        # Drop each table
-        for table in tables:
-            table_name = table[0]
-            cursor.execute(f"DROP TABLE IF EXISTS {table_name};")
-
-        # Commit the changes
-        conn.commit()
-
-
-
+    #     cur.execute('''DELETE FROM Passwords''')
