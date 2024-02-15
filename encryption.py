@@ -18,34 +18,28 @@ def encrypt_data(key:bytes, data:str):
     return encrypted_data
 
 def encrypt_list(key, input_list:list):
+    '''Returns a encrypted list. The key does NOT return'''
     for index, info in enumerate(input_list):
         input_list[index] = encrypt_data(key, info)
     
-    return input_list + [key]
+    return input_list
 
 def decrypt_data(key:bytes, data:bytes):
     '''Decrypts the data you pass in'''
     decrypted_data = Fernet(key).decrypt(data)
     return decrypted_data.decode('utf-8')
 
-def decrypt_nested_list(accounts:list):# acounts is :[(username, password, service, notes, key), (...)]
+def decrypt_list(key:bytes, account:list):
+    '''Returns the decrypted list with the key in the last place'''
+    for i, account_info in enumerate(account):
+        account[i] = decrypt_data(key, account_info)
+
+    return account
+
+def decrypt_nested_list(key:bytes, accounts:list):
+    '''Returns all the the accounts info with the key in the last place of the list'''
     for i, account_info in enumerate(accounts):
             accounts[i] = list(account_info)
-            for index, element in enumerate(account_info[:-1]):
-                accounts[i][index] = decrypt_data(account_info[-1], element)
-            
-            accounts[i].pop(-1)
-
+            for index, element in enumerate(account_info):
+                accounts[i][index] = decrypt_data(key, element)
     return accounts
-
-def db_folder():
-    '''Returns the app folder in the Documents'''
-    #Get the user's User Folder
-    user_folder = os.path.expanduser(f"~/Documents")
-    app_folder = f"{user_folder}/Locker Pass"
-
-    if not os.path.exists(app_folder):
-        app_folder = os.makedirs(app_folder) 
-    
-
-    return app_folder
