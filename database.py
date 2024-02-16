@@ -114,7 +114,7 @@ def is_correct_vault_pass(vault_name:str, vault_pass:str) -> True | False:
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
 
-        cur.execute('''SELECT password FROM Passwords WHERE name=?''', (vault_name,))
+        cur.execute('''SELECT password FROM Passwords WHERE name=?''', (db_name(vault_name),))
         hashed_pass = cur.fetchone()
 
         if not hashed_pass:
@@ -191,12 +191,40 @@ def drop_all_vaults():
     vaults = get_all_vaults()
     for vault in vaults:
         drop_vault(vault)
-    
-if __name__ == '__main__':
-    vault_name = "Measdf  asdf sadf"
-    vault_pass = "!234"
-    create_vault(vault_name, vault_pass)
-    # with sqlite3.connect(db_path()) as conn:
-    #     cur = conn.cursor()
 
-    #     cur.execute('''DELETE FROM Passwords''')
+def delete_account(vault_name:str, vault_pass:str, account_list:list):
+
+    with sqlite3.connect(db_path()) as conn:
+        cur = conn.cursor()
+
+        # Encrypting
+        key = get_vault_key(vault_name, vault_pass)
+
+        if not key: return "Key Error"
+
+        cur.execute(f'''SELECT * FROM {db_name(vault_name)}''')
+        accounts = cur.fetchall()
+        
+        cur.execute(f'''SELECT rowid FROM {db_name(vault_name)}''')
+        rowid_list = cur.fetchall()
+
+        dec_accounts = encryption.decrypt_nested_list(key, accounts)
+        # If the account is not in the database does not start
+        if not (account_list in dec_accounts):
+            return "Account not in db"
+        
+        # Searches the table for the correct rowid of the account.
+        for index, account in enumerate(accounts):
+            if account == account_list:
+                rowid = rowid_list[index][0]
+                cur.execute(f'''DELETE FROM {db_name(vault_name)} WHERE rowid=?''', (rowid,)) # Deletes the account
+                return "Deleted"
+        else:
+            return "Not deleted. Something went wrong"
+        
+if __name__ == '__main__':
+
+    vault_name = "Test"
+    vault_pass = "1234"
+    print(get_vault_key("tEsT", "1234"))
+    
