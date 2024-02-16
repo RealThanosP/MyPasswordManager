@@ -4,8 +4,9 @@ from tkinter import ttk
 from PIL import Image
 from PassGen import PassGenerator
 import pyperclip
-import encryption
+from tkinter import messagebox
 import database
+
 #Constants
 # Window
 WIN_WIDTH = 700
@@ -446,7 +447,6 @@ class MainApp(ctk.CTk):
         self.saveServiceEntry.delete(0, "end")
         self.saveVaultPassEntry.delete(0, "end")
 
-        print(database.get_vault_accounts(selected_vault, vault_pass))
     # See saved password of the diff vaults ###DONE###
     # NOTE: The table window is NOT done
     def seeVaultSection(self):
@@ -518,7 +518,7 @@ class MainApp(ctk.CTk):
             return
         
         self.destroy()
-        app = VaultPopUp(vault_name)
+        app = VaultPopUp(vault_name, vault_pass)
         app.mainloop()     
 
     def hide_show_password(self):
@@ -688,9 +688,10 @@ class MainApp(ctk.CTk):
 
 class VaultPopUp(ctk.CTk):
 
-    def __init__(self, vault_name):
+    def __init__(self, vault_name, vault_pass):
         super().__init__()
         self.name = vault_name
+        self.password = vault_pass
         self.resizable(False,False)
         self.title(f"{vault_name} Vault")
         self.iconbitmap(APP_ICON)
@@ -763,7 +764,7 @@ class VaultPopUp(ctk.CTk):
                     background=[('active', '#3484F0')])
         
         # Password table for the vault showing
-        heading_names = ("Username/Email", "Password", "Service", "Note")
+        heading_names = ("Username/Email", "Password", "Service")
         
         self.frametable = ctk.CTkFrame(master=self.frame)
         self.frametable.pack(expand=True)
@@ -777,14 +778,12 @@ class VaultPopUp(ctk.CTk):
         self.table.column(heading_names[0], width=150)
         self.table.column(heading_names[1], width=150)
         self.table.column(heading_names[2], width=200)
-        self.table.column(heading_names[3], width=200)
 
         #Format the headings
         self.table.heading("#0", text="", anchor="w")
         self.table.heading(heading_names[0], text=heading_names[0], anchor="w", command= lambda: self.sort_column(heading_names[0], False))
         self.table.heading(heading_names[1], text=heading_names[1], anchor="w", command= lambda: self.sort_column(heading_names[1], False))
         self.table.heading(heading_names[2], text=heading_names[2], anchor="w", command= lambda: self.sort_column(heading_names[2], False))
-        self.table.heading(heading_names[3], text=heading_names[3], anchor="w", command= lambda: self.sort_column(heading_names[3], False))
 
         self.tableFill()
 
@@ -794,7 +793,7 @@ class VaultPopUp(ctk.CTk):
             self.errorLabelGenerator.configure(text="Please select a\nvault to reveal")
             return 
         
-        vault = database.get_vault(self.name, False)
+        vault = database.get_vault_accounts(self.name, self.password)
         for element in vault:
             self.table.insert("", "end", value=element)
 
@@ -829,14 +828,31 @@ class VaultPopUp(ctk.CTk):
 
     def deleteAccount(self):
         vault_name = self.name
+        vault_pass = self.password
         try:
             selected_ID = self.table.selection()[0]
         except IndexError:
             return
+        
+        # Does the delete process
         selected_row = self.table.item(selected_ID)["values"]
-        selected_username = str(selected_row[0])
-        selected_service = str(selected_row[2])
-        database.delete_account(vault_name, selected_username, selected_service)
+        selected_row = [str(x) for x in selected_row] # Makes sure every item in the list is a string
+
+        deleted = database.delete_account(vault_name, vault_pass, selected_row)
+
+        # Error messages
+        account_not_found_error_msg = f"Account not found.\nPlease try again"
+        account_not_deleted = f"Something went wrong please try again."
+        account_deleted_successfully = f"Account deleted successfully"
+
+        if deleted == "Account not in db": 
+            messagebox.showerror(account_not_found_error_msg)
+        elif deleted == "Not deleted. Something went wrong":
+            messagebox.showerror(account_not_deleted)
+        elif deleted == "Deleted":
+            messagebox.showinfo(account_deleted_successfully)
+
+
         self.refresh_table()
 
     def refresh_table(self):
@@ -846,6 +862,6 @@ class VaultPopUp(ctk.CTk):
         self.tableFill()
 
 if __name__ == '__main__':
-    app = MainApp()
-    # app = VaultPopUp("Thanos")
+    # app = MainApp()
+    app = VaultPopUp("Test", "1234")
     app.mainloop()
