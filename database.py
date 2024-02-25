@@ -53,7 +53,6 @@ def create_vault_table(vault_name:str):
                     service TEXT)''')
 
     conn.commit()
-    return True
 
 def create_vault_pass():
     with sqlite3.connect(db_path()) as conn:
@@ -109,7 +108,7 @@ def get_vault_key(vault_name:str, vault_pass:str) -> bytes | None:
     key = key[0]
 
     return key
-
+    
 def is_correct_vault_pass(vault_name:str, vault_pass:str) -> True | False:
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
@@ -221,10 +220,81 @@ def delete_account(vault_name:str, vault_pass:str, account_list:list):
                 return "Deleted"
         else:
             return "Not deleted. Something went wrong"
-        
-if __name__ == '__main__':
 
+def change_vault_key(vault_name:str, new_key:bytes):
+    '''Changes the key of encryption of the vault in the Passwords table.'''
+    with sqlite3.connect(db_path()) as conn:
+        cur = conn.cursor()
+
+        # Change the key of the vault
+        cur.execute(f'''UPDATE Passwords SET key=? WHERE name=?''', (new_key, db_name(vault_name)))
+
+        conn.commit() 
+
+def get_temp_vault_accounts(vault_name:str):
+    '''Gets all the accounts inside the vault without password verification'''
+    with sqlite3.connect(db_path()) as conn:
+        cur = conn.cursor()
+
+        cur.execute(f'''SELECT key FROM Passwords WHERE name=?''', (db_name(vault_name),))
+        old_key = cur.fetchone()[0]
+
+        cur.execute(f'''SELECT * FROM {db_name(vault_name)}''')
+        accounts = cur.fetchall()
+
+        accounts = encryption.decrypt_nested_list(old_key, accounts)
+    return accounts
+
+def fill_temp_table(vault_name:str):
+    '''Fills up a temporary table with the newly encrypted data'''
+    with sqlite3.connect(db_path()) as conn:
+        cur = conn.cursor()
+
+        temp_table_name = f'{db_name(vault_name)}_temp'
+        accounts = get_temp_vault_accounts(vault_name)
+        print(accounts)
+        new_key = encryption.generate_key()
+
+        for account in accounts:
+            encrypted_account = encryption.encrypt_list(new_key, account)
+
+            cur.execute(f'''INSERT INTO {temp_table_name} 
+                        (username, password, service) 
+                        VALUES (?,?,?)''', encrypted_account)
+        conn.commit()
+
+    return new_key
+
+def change_keys():
+    '''Changes all the keys of all the vaults, for security purposes.'''
+    with sqlite3.connect(db_path()) as conn:
+        cur = conn.cursor()
+
+        all_vaults = get_all_vaults()
+
+        for vault_name in all_vaults:
+            # Get the old key
+            cur.execute(f'''SELECT key FROM Passwords WHERE name=?''', (db_name(vault_name),))
+            old_key = cur.fetchone()[0]
+
+            # Create a temp_table
+            temp_table_name = f'{vault_name}_temp'
+            create_vault_table(temp_table_name)
+            
+            # Fill up the temp table
+            new_key = fill_temp_table(vault_name)
+
+            # Drop the non temporary table
+            cur.execute(f'''DROP TABLE {db_name(vault_name)}''')
+
+            # Change the key in the temp_vault
+            change_vault_key(vault_name, new_key) # last thing
+
+            # Change the name of the temp table to the original name
+            cur.execute(f'''ALTER TABLE {temp_table_name} RENAME TO {db_name(vault_name)}''')
+
+        conn.commit()
+
+if __name__ == '__main__':
     vault_name = "Test"
     vault_pass = "1234"
-    print(get_vault_key("tEsT", "1234"))
-    
