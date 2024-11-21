@@ -1,86 +1,172 @@
-import sqlite3
-import encryption
-import os
-import hashlib
+import sqlite3, os, hashlib, pathlib
+from typing import List
+
+from Encryption.encryption import encrypt, decrypt_account_list, decrypt_nested_account_list, encrypt_account_dict
+
+# Exceptions
+class VaultAlreadyExistsException(Exception):
+    pass
+
+class InvalidPasswordException(Exception):
+    pass
+
+class InvalidVaultException(Exception):
+    pass
+
+class AccountAlreadyExistsException(Exception):
+    pass
+
+class AccountDoesNotExistException(Exception):
+    pass
 
 # NOTE: The name of the vault should not have spaces
+# TODO I want to restructure the database so it looks like the schema in the Reports Folder 
+#* UPDATE (21/11/2024 9:27pm): It's done
+
+# HELPER FUNCTIONS
+#* DONE
 def custom_hash(input_string):
+    '''Returns a hashed password to store in the db'''
     sha256 = hashlib.sha256()
     sha256.update(input_string.encode('utf-8'))
     return sha256.hexdigest()
 
+#* DONE
 def db_name(name:str):
     '''Returns the name version that can be a table name in the db'''
     name_elements = name.split(" ")
     shaped_name = "_".join(name_elements).lower()
     return shaped_name
 
-def db_folder():
-    '''Returns the app folder in the Documents'''
-    #Get the user's User Folder
-    user_folder = os.path.expanduser(f"~/Documents")
-    app_folder = f"{user_folder}/Locker Pass"
+#* DONE
+def db_path() -> str | pathlib.Path:
+    '''Returns the db path for the conn'''
+    def db_folder() -> str:
+        """Returns the default directory of the folder of the database
 
-    if not os.path.exists(app_folder):
-        app_folder = os.makedirs(app_folder) 
-    
-    return app_folder
+        Returns:
+            (str | Path): The folder name of the Database
+        """
 
-def db_path():
-    '''Returns the db path for the connection'''
-    DB_NAME = "Account_services.db"
+        return pathlib.Path(os.getcwd())
+
+    DB_NAME = "database.db"
     DB_FOLDER = db_folder()
 
     DB_PATH = os.path.join(DB_FOLDER, DB_NAME)
     return DB_PATH
 
-def show_name(name:str):
+#* DONE
+def show_name(name:str) -> str:
     '''Returns a string that reverses the the effect of db_name'''
     name_elements = name.split("_")
     shaped_name = " ".join(name_elements).capitalize()
     return shaped_name
 
-def db_init():
-    create_vault_pass()
+#* DONE
+#! The key here has to change 42 lines deep in the function
+def create_db() -> None:
+    """
+    Creates 2 tables. 
 
-def create_vault_table(vault_name:str):
+    1. The default_vault (stores multiple accounts and a vault_id for each account)
+    2. The vaults (stores all the vault_names with their id)
+    3. The default vault table, named "default_vault" where the first accounts of the user can saved
+    """
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
 
-        cur.execute(f'''CREATE TABLE IF NOT EXISTS {db_name(vault_name)}(
-                    username TEXT,
-                    password TEXT,
-                    service TEXT)''')
+        # Create the Users table
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            vaults_ids TEXT -- Stores a JSON
+        );
+        """)
 
-    conn.commit()
+        # Create the Vaults table
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS vaults (
+            vault_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            password TEXT NOT NULL
+        );
+        """)
 
-def create_vault_pass():
-    with sqlite3.connect(db_path()) as conn:
-        cur = conn.cursor()
-        cur.execute(f'''CREATE TABLE IF NOT EXISTS Passwords (
-                name TEXT PRIMARY KEY,
+        # Create the default vault table
+        try:
+            cur.execute("""
+            CREATE TABLE default_vault (
+                account_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                email TEXT,
                 password TEXT,
-                key TEXT
-        )''')
-    conn.commit()
+                service TEXT
+            );
+            """)
+            # Add the default_table into the vaults table with a random password
+            cur.execute("""INSERT INTO vaults (name, password) VALUES (?, ?)""", ("default_vault", custom_hash("thanos"))) #! The key here has to change
+        except sqlite3.OperationalError as e: # For the case that default_vault exists already and for some reason (probably I will be stupid) the create_db  gets called again
+            print(e)
 
-def create_vault(vault_name:str, vault_pass:str):
-    '''Creates the complete pair of new vault_table and security row in the Password_table'''
-    create_vault_table(vault_name)
-    save_vault_pass(vault_name, vault_pass)
+        conn.commit()
 
-def save_vault_pass(vault_name:str, vault_pass:str):
-    '''Creates a row in the passwords table with the hashed password and the key tied up to the name of the vault'''
-    key = encryption.generate_key()
+#* DONE kinda
+def create_vault_table(vault_name:str, vault_pass:str) -> None:
+    """Creates a new vault table in the database and adds its id to the vaults table
+
+    Args:
+        vault_name (str): The name of the new vault in regular form
+        vault_pass (str): The password of the vault
+
+    Returns:
+        _description_: None
+    
+    Raises:
+        _type_: VaultAlreadyExistsException
+    """
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
-        
-        cur.execute(f'''INSERT INTO Passwords (name, password, key) VALUES (?,?,?)''', (db_name(vault_name), custom_hash(vault_pass), key))
-        
-        conn.commit()
-        return True
-    
-def get_all_vaults():
+
+        # Create the new vault table
+        try:
+            # Start a transaction
+            cur.execute("BEGIN TRANSACTION;")
+            
+            # Check if the vault already exists
+            cur.execute("SELECT COUNT(*) FROM vaults WHERE name = ?", (db_name(vault_name),))
+            if cur.fetchone()[0] > 0:
+                raise VaultAlreadyExistsException(f"{db_name(vault_name)} table already exists")
+            
+            # Insert the new vault into the 'vaults' table
+            cur.execute("INSERT INTO vaults (name, password) VALUES (?, ?)", (db_name(vault_name), custom_hash(vault_pass),))
+
+            # Create a new table for the vault with the corresponding 'vault_id'
+            cur.execute(f"""
+                CREATE TABLE {db_name(vault_name)} (
+                    account_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT,
+                    email TEXT,
+                    password TEXT,
+                    service TEXT
+                )
+            """)
+
+
+            # Commit the transaction
+            conn.commit()
+        except sqlite3.OperationalError as e:
+            print(f"An error occurred: {e}")
+            # Rollback the transaction if an error occurs
+            conn.rollback()
+        except VaultAlreadyExistsException as e:
+            print(e)
+            conn.rollback()
+
+#* STILL WORKING
+def get_all_vaults() -> List[str]:
     '''Returns a list with all the vaults saved in the database'''
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
@@ -88,213 +174,339 @@ def get_all_vaults():
         cur.execute(query)
 
         vaults = cur.fetchall()
-        vaults = [show_name(x[0]) for x in vaults if (x[0] != "Passwords") and (x[0] != "sqlite_sequence")]
+        vaults = [show_name(x[0]) for x in vaults if (x[0] != "sqlite_sequence")]
 
         return vaults
 
-def get_vault_key(vault_name:str, vault_pass:str) -> bytes | None:
-    '''Returns the key used to encrypt a vault. Returns NONE when there is no such vault'''
-    with sqlite3.connect(db_path()) as conn:
-        cur = conn.cursor()
+#* probably works
+# NOTE TESTED with the thanos_is_shit table
+def check_for_valid_vault_password(vault_name:str, vault_pass:str) -> bool:
+    """Checks if the hash of vault_pass is equal to the hash that is being stored in the vaults table
 
-        query = f'''SELECT key FROM Passwords WHERE name=? AND password=?'''
-        cur.execute(query, (db_name(vault_name), custom_hash(vault_pass)))
+    Args:
+        vault_name (str): The name of the vault in regular form
+        vault_pass (str): The vault of the password to be tested if matched
 
-        key = cur.fetchone()
-
-    # Check for the key found
-    if not key:
-        return None
-    key = key[0]
-
-    return key
+    Returns:
+        bool: true or false
     
-def is_correct_vault_pass(vault_name:str, vault_pass:str) -> True | False:
+    Raises:
+        _description_: InvalidPasswordException
+    """
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
 
-        cur.execute('''SELECT password FROM Passwords WHERE name=?''', (db_name(vault_name),))
+        
+        cur.execute("SELECT password FROM vaults WHERE name = ?", (db_name(vault_name), ) )
         hashed_pass = cur.fetchone()
 
-        if not hashed_pass:
-            # The vault doesn't exists
-            return False
-        
-        if custom_hash(vault_pass) == hashed_pass[0]:
-            return True
-
-def is_duplicate_account(vault_name:str, vault_pass:str, account_list:list):
-    '''Checks for duplicate account in db'''
-    accounts_in_vault = get_username_service(vault_name, vault_pass)
-    check_list = [account_list[0], account_list[2]]
-    if check_list in accounts_in_vault:
-        return True
+        try:
+            if not hashed_pass:
+                # The vault doesn't exists
+                raise InvalidPasswordException("The vault doesn't exists")
+            
+            if custom_hash(vault_pass) == hashed_pass[0]:
+                return True
+        except InvalidPasswordException as e:
+            pass
+    
     return False
 
-def save_account(vault_name:str, vault_pass:str, account_list:list):
-    '''Saves an encrypted list in the corresponding vault, with the key taken from the passwords vault. Returns the encrypted list'''
-    # Makes sure the password is correct to proceed 
-    is_correct_pass = is_correct_vault_pass(vault_name, vault_pass)
-    if not is_correct_pass:
-        return "Password"
-    
-    # Makes sure that there is no duplicate account in the vault
-    is_already_saved = is_duplicate_account(vault_name, vault_pass, account_list)
-    if is_already_saved:
-        return "Already saved"
-    
+#* DONE
+def check_for_duplicate_account(vault_name: str, account_dict:dict[str:str]) -> bool:
+    """Returns true if the account already exists in vault with name vault_name else returns false.
+    A duplicate is considered an account with the same combination of email and service as most online
+    services do not allow to create a 2 account with 2 emails.
+
+    Args:
+        vault_name (str): Name of the vault
+        account_dict (dict[str:str]): The dictionary containing the username email password and service as keys
+        NOTE it's important to pass the encrypted data here 
+
+    Returns:
+        bool: True or False
+    """
+    email = account_dict['email']
+    service = account_dict['service']
+
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
 
-        key = get_vault_key(vault_name, vault_pass)
-        encrypted_account_list = encryption.encrypt_list(key, account_list)
-        cur.execute(f'''INSERT INTO {db_name(vault_name)} (username, password, service) VALUES (?,?,?)''', encrypted_account_list)
+        try:
+            # Check if the vault table exists
+            cur.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{db_name(vault_name)}';")
+            if cur.fetchone() is None:
+                raise InvalidVaultException(f"Vault with ID '{db_name(vault_name)}' does not exist.")
+            
+            # Search for the account by email
+            cur.execute(f"""
+                SELECT account_id, username, email, password, service 
+                FROM {db_name(vault_name)}
+                WHERE email LIKE ? AND service LIKE ?;
+            """, (email, service, ))
+            
+            # Fetch the matching account
+            result = cur.fetchone()
+            if result is None:
+                return False # The account does not exists in the vault
 
-        conn.commit()
-        return encrypted_account_list
+            return True # The account was found
 
-def get_vault_accounts(vault_name:str, vault_pass:str):
-    '''Gets the contents of the vault'''
+        except sqlite3.Error as e:
+            print(f"An error occurred: {e}")
+            return False
+        except InvalidVaultException as e:
+            print(e)
+            return False
+
+#* DONE kinda
+def save_account(vault_name:str, vault_pass:str, account_dict: dict) -> str | dict:
+    """Unpacks the account_dict of the account details and saves them into the database.
+
+    Args:
+        vault_name (str): The name of the vault
+        vault_pass (str): The password of the vault
+        account_dict (dict): A list in the form of [username, email, password, service]
+
+    Returns:
+        str | dict: Returns the error messages | encrypted account_dict
+    """
+    
+    # NOTE LOOK into the format
+    username = account_dict['username']
+    email = account_dict['email']
+    password = account_dict['password']
+    service = account_dict['service']
+
+    key = custom_hash(vault_pass)
+
+    enc_account_dict = {
+        "username": encrypt(key, username),
+        "email": encrypt(key, email),
+        "password": encrypt(key, password),
+        "service": encrypt(key, service)
+    }
+
+    enc_username = enc_account_dict["username"]
+    enc_email = enc_account_dict["email"]
+    enc_password = enc_account_dict["password"]
+    enc_service = enc_account_dict["service"]
+
+    try:
+        # Check if the vault password is matching
+        is_vault_pass_valid = check_for_valid_vault_password(vault_name, vault_pass)
+        if not is_vault_pass_valid:
+            raise InvalidPasswordException("Wrong Password")
+
+        # Check if the account already exists in the vault
+        is_account_duplicate = check_for_duplicate_account(vault_name, enc_account_dict)
+        if is_account_duplicate:
+            raise AccountAlreadyExistsException("The account is already stored in the vault")
+    
+    except InvalidPasswordException as e:
+        print(e)
+        return str(e)
+    
+    except AccountAlreadyExistsException as e:
+        print(e)
+        return str(e)
+        
+    try:
+        # Connect to the db and insert the account into the correct vault
+        with sqlite3.connect(db_path()) as conn:
+            cur = conn.cursor()
+
+            cur.execute("BEGIN TRANSACTION;")
+
+            cur.execute(f"""INSERT INTO {db_name(vault_name)} 
+                        (username, email, password, service)
+                        VALUES (?,?,?,?)"""
+                        ,(enc_username, enc_email, enc_password, enc_service,) 
+                        )
+            
+            conn.commit()
+    except sqlite3.OperationalError as e:
+        print(e)
+        return str(e)
+
+
+
+
+    # Actual storing of the account in the corresponding vault of the db
+
+#*DONE
+#? Not sure if useful
+def get_vault_id(vault_name:str) -> int:
+    """Gets the vault_id of the vault_name specified
+
+    Args:
+        vault_name (str): The regular name of the vault table
+    Returns:
+        int: The vault_id
+    """
+
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
 
-        key = get_vault_key(vault_name, vault_pass)
+        cur.execute(f"""SELECT vault_id FROM vaults WHERE name = ?""", (db_name(vault_name), ) )
+        vault_id = cur.fetchone()[0]
+
+        if not vault_id:
+            raise InvalidVaultException("This vaults does not exist in vaults")
+
+        print(f"vault_name={db_name(vault_name)}, vault_id={vault_id}", )
+    
+    return vault_id
+
+#*DONE
+def get_all_accounts_from_vault(vault_name:str, vault_pass:str) -> list[dict[str:str]]:
+    """Decrypts all of the contents of the vault and returns them as a list of nicely mapped dictionaries
+
+    Args:
+        vault_name (str): The name of the vault in regular format
+        vault_pass (str): The password of the vault
+
+    Returns:
+        _type_: list[dict[str:str]]
+        _description_: Returns a list of the decrypted accounts of the vault
+    """
+    with sqlite3.connect(db_path()) as conn:
+        cur = conn.cursor()
+
+        key = custom_hash(vault_pass)
         cur.execute(f'''SELECT * FROM {db_name(vault_name)}''')
 
         contents = cur.fetchall()
-        dec_content = encryption.decrypt_nested_list(key, contents)
+        dec_content = decrypt_nested_account_list(key, contents)
 
         return dec_content
 
-def get_username_service(vault_name:str, vault_pass:str):
-    accounts_in_vault = get_vault_accounts(vault_name, vault_pass)
+#* DONE
+def get_account_from_vault(vault_name: str, vault_pass: str, account_dict: dict[str:str]) -> dict[str:str]:
+    """Returns the decrypted version of the account stored in the db. The account_dict  
 
-    for account in accounts_in_vault:
-        account.pop(1)
-    return accounts_in_vault
+    Args:
+        vault_name (str): The name of the vault
+        vault_pass (str): The password of the vault
+        account_dict (dict[str:str]): The standard account_dict with 
+        (account_id:optional, username:optional, email:VITAL, password:optional, service:VITAL) as 
+        its keys. NOTE you need to input the unencrypted dictionary
+        
 
+    Returns:
+        _type_: dict[str:str]
+        _description_: Returns the unencrypted account off of the vault. If it exists. If not returns the equivalent error message
+    """
+
+    # Check if vault_pass is valid
+    is_valid_vault_pass = check_for_valid_vault_password(vault_name, vault_pass)
+    try:
+        if not is_valid_vault_pass: 
+            raise InvalidPasswordException("The password of the vault is not correct.")       
+    except InvalidPasswordException as e:
+        print(e)
+        return str(e)
+
+    # Encrypt the dictionary for the search. I only really need email and service for that purpose
+    key = custom_hash(vault_pass)
+    enc_email = encrypt(key, account_dict["email"])
+    enc_service = encrypt(key, account_dict["service"])
+    
+    enc_account_dict = {
+        "email": enc_email,
+        "service": enc_service
+    }
+    # Check if the account exists
+    does_account_exists_in_vault = check_for_duplicate_account(vault_name, enc_account_dict)
+    try:
+        if not does_account_exists_in_vault:
+            raise AccountDoesNotExistException("The account you are looking for does not exist.")
+    except AccountDoesNotExistException as e:
+        return str(e)
+
+    # Connect to the db
+    with sqlite3.connect(db_path()) as conn:
+        cur = conn.cursor()
+
+        # Search for the matching encrypted account
+        cur.execute(f"""SELECT * FROM {db_name(vault_name)}
+                    WHERE email LIKE ? AND service LIKE ?""",
+                    (enc_email, enc_service, ) )
+        enc_account_list = cur.fetchone()
+
+        # Decrypt the account
+        account_dict = decrypt_account_list(key, enc_account_list)
+        return account_dict
+        # Return the decrypted account
+
+#* DONE
 def drop_vault(vault_name:str):
+    '''Deletes a vault(table) from the database'''
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
         
-        # is_correct_pass = is_correct_vault_pass(vault_name, vault_pass)
+        # is_correct_pass = check_for_valid_vault_password(vault_name, vault_pass)
         # if not is_correct_pass:
         #     return
-        
-        cur.execute(f'''DROP TABLE {db_name(vault_name)}''')
-        cur.execute(f'''DELETE FROM Passwords WHERE name=?''', (db_name(vault_name), ))
-
+        cur.execute("BEGIN TRANSACTION;")
+        try:
+            cur.execute("DELETE FROM vaults WHERE name = ?", (db_name(vault_name), ))
+            cur.execute(f'''DROP TABLE {db_name(vault_name)}''')
+        except sqlite3.Error as e:
+            print(e)
+            conn.rollback()
         conn.commit()
 
+#* STILL WORKING
+#! DEVELOPMENT ONLY FUNCTION
 def drop_all_vaults():
+    '''Drops all the vaults'''
     vaults = get_all_vaults()
     for vault in vaults:
         drop_vault(vault)
 
-def delete_account(vault_name:str, vault_pass:str, account_list:list):
+#* DONE
+def delete_account(vault_name:str, vault_pass:str, account_dict:dict[str:str]) -> str | None:
+    """Deletes the account provided from the vault, if it exists.
+
+    Args:
+        vault_name (str): The name of the vault
+        vault_pass (str): The password of the vault
+        account_dict (_type_): A dictionary with the following keys -->
+        (account_id:optional, username:optional, email:VITAL, password:optional, service:VITAL)
+
+    Returns:
+        _type_: str
+        _description_: Returns only when there is an exception and it returns the error message
+    """    
+
+    key = custom_hash(vault_pass)
+    enc_account_dict = encrypt_account_dict(key, account_dict)
+
+    enc_email_to_delete = enc_account_dict["email"]
+    enc_service_to_delete = enc_account_dict["service"]
+
+    # Check if the account is stored in the vault
+    is_account_in_vault = check_for_duplicate_account(vault_name, enc_account_dict)
+    try:
+        if not is_account_in_vault:
+            raise AccountDoesNotExistException("The account you are trying to delete doesn't exist.")
+    except AccountDoesNotExistException as e:
+        print(e)
+        return str(e)
 
     with sqlite3.connect(db_path()) as conn:
         cur = conn.cursor()
 
-        # Encrypting
-        key = get_vault_key(vault_name, vault_pass)
-
-        if not key: return "Key Error"
-
-        cur.execute(f'''SELECT * FROM {db_name(vault_name)}''')
-        accounts = cur.fetchall()
+        cur.execute("BEGIN TRANSACTION;")
+        try:
+            cur.execute(f"""DELETE FROM {db_name(vault_name)} 
+                    WHERE email LIKE ? AND service LIKE ?"""
+                    , (enc_email_to_delete, enc_service_to_delete, ) )
+        except sqlite3.OperationalError as e:
+            conn.rollback()
+            return str(e)
         
-        cur.execute(f'''SELECT rowid FROM {db_name(vault_name)}''')
-        rowid_list = cur.fetchall()
-
-        dec_accounts = encryption.decrypt_nested_list(key, accounts)
-        # If the account is not in the database does not start
-        if not (account_list in dec_accounts):
-            return "Account not in db"
+        conn.commit()
         
-        # Searches the table for the correct rowid of the account.
-        for index, account in enumerate(accounts):
-            if account == account_list:
-                rowid = rowid_list[index][0]
-                cur.execute(f'''DELETE FROM {db_name(vault_name)} WHERE rowid=?''', (rowid,)) # Deletes the account
-                return "Deleted"
-        else:
-            return "Not deleted. Something went wrong"
-
-def change_vault_key(vault_name:str, new_key:bytes):
-    '''Changes the key of encryption of the vault in the Passwords table.'''
-    with sqlite3.connect(db_path()) as conn:
-        cur = conn.cursor()
-
-        # Change the key of the vault
-        cur.execute(f'''UPDATE Passwords SET key=? WHERE name=?''', (new_key, db_name(vault_name)))
-
-        conn.commit() 
-
-def get_temp_vault_accounts(vault_name:str):
-    '''Gets all the accounts inside the vault without password verification'''
-    with sqlite3.connect(db_path()) as conn:
-        cur = conn.cursor()
-
-        cur.execute(f'''SELECT key FROM Passwords WHERE name=?''', (db_name(vault_name),))
-        old_key = cur.fetchone()[0]
-
-        cur.execute(f'''SELECT * FROM {db_name(vault_name)}''')
-        accounts = cur.fetchall()
-
-        accounts = encryption.decrypt_nested_list(old_key, accounts)
-    return accounts
-
-def fill_temp_table(vault_name:str):
-    '''Fills up a temporary table with the newly encrypted data'''
-    with sqlite3.connect(db_path()) as conn:
-        cur = conn.cursor()
-
-        temp_table_name = f'{db_name(vault_name)}_temp'
-        accounts = get_temp_vault_accounts(vault_name)
-        print(accounts)
-        new_key = encryption.generate_key()
-
-        for account in accounts:
-            encrypted_account = encryption.encrypt_list(new_key, account)
-
-            cur.execute(f'''INSERT INTO {temp_table_name} 
-                        (username, password, service) 
-                        VALUES (?,?,?)''', encrypted_account)
-        conn.commit()
-
-    return new_key
-
-def change_keys():
-    '''Changes all the keys of all the vaults, for security purposes.'''
-    with sqlite3.connect(db_path()) as conn:
-        cur = conn.cursor()
-
-        all_vaults = get_all_vaults()
-
-        for vault_name in all_vaults:
-            # Get the old key
-            cur.execute(f'''SELECT key FROM Passwords WHERE name=?''', (db_name(vault_name),))
-            old_key = cur.fetchone()[0]
-
-            # Create a temp_table
-            temp_table_name = f'{vault_name}_temp'
-            create_vault_table(temp_table_name)
-            
-            # Fill up the temp table
-            new_key = fill_temp_table(vault_name)
-
-            # Drop the non temporary table
-            cur.execute(f'''DROP TABLE {db_name(vault_name)}''')
-
-            # Change the key in the temp_vault
-            change_vault_key(vault_name, new_key) # last thing
-
-            # Change the name of the temp table to the original name
-            cur.execute(f'''ALTER TABLE {temp_table_name} RENAME TO {db_name(vault_name)}''')
-
-        conn.commit()
-
-if __name__ == '__main__':
-    vault_name = "Test"
-    vault_pass = "1234"
+#! FOR TESTING ONLY YOU CAN ADD RUNNABLE CODE    
