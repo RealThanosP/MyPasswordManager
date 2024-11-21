@@ -1,7 +1,7 @@
 import sqlite3, os, hashlib, pathlib
 from typing import List
 
-from Encryption.encryption import encrypt, decrypt_account_list, decrypt_nested_account_list, encrypt_account_dict
+from encryption import encrypt, decrypt_account_list, decrypt_nested_account_list, encrypt_account_dict
 
 # Exceptions
 class VaultAlreadyExistsException(Exception):
