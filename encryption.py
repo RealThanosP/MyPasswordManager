@@ -1,45 +1,103 @@
-from cryptography.fernet import Fernet
-import os
+# This module is handling all the encryption of the app. 
+# Uses a Proprietary encryption algorithm that I found on the web.
+# Its crap, but for now (19/11/2024) it's looks fine to me
 
-# NOTE: Every time you access the key do it into binary mode
-# NOTE: The encrtyption of the files is being done in the db folder
-# All the keys will be passed in the db folder and be loaded from there
+#* DONE
+def encrypt(key: str , data: str) -> str:
+    """Encrypts the data you put in with the key and Returns an encrypted string
 
-def generate_key():
-    '''Generates a key into the app folder to use to encrypt/decrypt'''
-    key = Fernet.generate_key()
-    return key
+    Args:
+        key (str): A custom key that is used to encrypt the data
+        data (str): The data you want to encrypt
 
-def encrypt_data(key:bytes, data:str):
-    '''Encryptes the data you pass in with the key you pass inn'''
-    data = bytes(data, 'utf-8')
-    encrypted_data = Fernet(key).encrypt(data)
+    Returns:
+        _type_: (str)
+        _description_: Encrypted data
+    """
+
+    encrypted = []
+    for i, c in enumerate(data):
+        key_c = ord(key[i % len(key)])
+        data_c = ord(c)
+        encrypted.append(chr((data_c + key_c) % 127))
+    return ''.join(encrypted)
+
+#* DONE
+def encrypt_account_dict(key: str, account_dict:dict[str:str]) -> dict[str:str]:
+    """
+    Returns:
+        _type_: dict[str:str]
+        _description_: Returns the encrypted version of the account dict
+    """
+    enc_account_dict = {}
+    for keyword in account_dict: # loop over the keys of the dictionary
+        if keyword == "account_id":
+            continue
+        enc_account_dict[keyword] = encrypt(key, account_dict[keyword])
+
+    return enc_account_dict
+
+#* DONE
+def decrypt(key: str , encrypted:str) -> str:
+    """The counter part of the encrypt function. It takes a key and an encrypted message and Returns,
+    the original message
+
+    Args:
+        key (str): The key used to encrypt the original data
+        encrypted (str): The encrypted message
+
+    Returns:
+        str: Original Message
+    """
     
-    return encrypted_data
+    data = []
+    for i, c in enumerate(encrypted):
+        key_c = ord(key[i % len(key)])
+        enc_c = ord(c)
+        data.append(chr((enc_c - key_c) % 127))
+    return ''.join(data)
 
-def encrypt_list(key, input_list:list):
-    '''Returns a encrypted list. The key does NOT return'''
-    for index, info in enumerate(input_list):
-        input_list[index] = encrypt_data(key, info)
+#* DONE
+def decrypt_account_list(key: str, enc_account_list: list[str]) -> dict[str:str]:
+    """It decrypts a list and maps the data in a dictionary with 
+    (account_id, username, email, password, service) as the keys.
+    Returns the decrypted dictionary
+
+    Args:
+        key (str): The encryption key used to encrypt
+        enc_account_list (list[str]): The encrypted list returned from a sql query
+
+    Returns:
+        _type_: dict[str:str]
+        _description_: Returns the dict with the attributes of the account mapped out_description_: Returns the dict with the attributes of the account mapped out
+    """
+    account_dict = {}
+
+    attribute_list = ("account_id", "username", "email", "password", "service")
+    for i, enc_attribute in enumerate(enc_account_list):
+        attribute_key = attribute_list[i]
+        if i == 0: # Does not include the account_id  in the encryption
+            account_dict[attribute_key] = enc_attribute
+        else:
+            account_dict[attribute_key] = decrypt(key, enc_attribute)
+
+    return account_dict
+
+#* DONE
+def decrypt_nested_account_list(key: str, enc_nested_list: list[list[str]]) -> list[dict[str:str]]:
+    """Returns a decrypted list of dictionaries formatted as a regular account_dict
+    Args:
+        key (str): The key used to encrypt the accounts in the vault
+        enc_nested_list (list[list[str]]): The result of a "SELECT * FROM ..." type query 
+
+    Returns:
+        _type_: (list[dict[str:str]])
+        _description_: Returns a list of dictionaries
+    """
+    account_dict_list = []
+    for account_list in enc_nested_list:
+        account_dict = decrypt_account_list(key, account_list)
+
+        account_dict_list.append(account_dict)
     
-    return input_list
-
-def decrypt_data(key:bytes, data:bytes):
-    '''Decrypts the data you pass in'''
-    decrypted_data = Fernet(key).decrypt(data)
-    return decrypted_data.decode('utf-8')
-
-def decrypt_list(key:bytes, account:list):
-    '''Returns the decrypted list with the key in the last place'''
-    for i, account_info in enumerate(account):
-        account[i] = decrypt_data(key, account_info)
-
-    return account
-
-def decrypt_nested_list(key:bytes, accounts:list):
-    '''Returns all the the accounts info with the key in the last place of the list'''
-    for i, account_info in enumerate(accounts):
-            accounts[i] = list(account_info)
-            for index, element in enumerate(account_info):
-                accounts[i][index] = decrypt_data(key, element)
-    return accounts
+    return account_dict_list
