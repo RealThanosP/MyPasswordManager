@@ -1,6 +1,6 @@
 # This module is handling all the encryption of the app. 
 # Uses a Proprietary encryption algorithm that I found on the web.
-# Its crap, but for now (19/11/2024) it's looks fine to me
+# Its crap, but for now (21/11/2024) it's looks fine to me
 
 #* DONE
 def encrypt(key: str , data: str) -> str:
