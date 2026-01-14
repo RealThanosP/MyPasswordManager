@@ -1,0 +1,70 @@
+{
+    "window": {
+        "width": 700,
+        "height": 550
+    },
+    "paths": {
+        "generator_button_img": "Images/refresh.png",
+        "copy_button_img": "Images/copy.png",
+        "app_icon": "Images/lock_icon.ico",
+        "save_img": "Images/save.png",
+        "add_vault_img": "Images/add.png",
+        "enter_vault_img": "Images/enter.png",
+        "see_password_img": "Images/see.png",
+        "hide_password_img": "Images/hide.png",
+        "trash_can_img": "Images/trash-can.png"
+    },
+    "sizes": {
+        "button": [25, 25],
+        "button_medium": [40, 40],
+        "button_big": [100, 120]
+    },
+    "colors": {
+        "button": "#333333",
+        "button_text": "#AAAAAA",
+        "button_hover": "#555555",
+        "password": {
+            "red": "#FF5733",
+            "yellow": "#FFD700",
+            "orange": "#FF8C00",
+            "dark_green": "#006400",
+            "green": "#228B22",
+            "light_green": "#7FFF00"
+        },
+        "frames": {
+            "save": "#1F1F1F",
+            "see": "#292929",
+            "add": "#383838",
+            "delete": "#454545"
+        }
+    },
+    "fonts": {
+        "name": "Segui UI",
+        "size": {
+            "labels": 15,
+            "combobox": 13,
+            "buttons": 15,
+            "entries": 17,
+            "sub_titles": 20,
+            "titles": 24
+        }
+    },
+    "paddings": {
+        "checkbox": 5,
+        "text": 10,
+        "slider": 60,
+        "save_gap": 50,
+        "combobox": 30,
+        "slider_label": 20,
+        "vault_entry": 13
+    },
+    "layout": {
+        "save_entry_width": 250,
+        "save_text_box_height": 100,
+        "save_combobox_size": [150, 30],
+        "see_entry_width": 300,
+        "see_combobox_size": [80, 33],
+        "add_entry_width": 330,
+        "delete_combobox_size": [50, 33]
+    }
+}

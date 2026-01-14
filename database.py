@@ -1,5 +1,5 @@
 import sqlite3, os, hashlib, pathlib
-from typing import List
+from typing import List, Optional
 
 from encryption import encrypt, decrypt_account_list, decrypt_nested_account_list, encrypt_account_dict
 
@@ -19,26 +19,18 @@ class AccountAlreadyExistsException(Exception):
 class AccountDoesNotExistException(Exception):
     pass
 
-# NOTE: The name of the vault should not have spaces
-# TODO I want to restructure the database so it looks like the schema in the Reports Folder 
-#* UPDATE (21/11/2024 9:27pm): It's done
-
-# HELPER FUNCTIONS
-#* DONE
 def custom_hash(input_string):
     '''Returns a hashed password to store in the db'''
     sha256 = hashlib.sha256()
     sha256.update(input_string.encode('utf-8'))
     return sha256.hexdigest()
 
-#* DONE
 def db_name(name:str):
     '''Returns the name version that can be a table name in the db'''
     name_elements = name.split(" ")
     shaped_name = "_".join(name_elements).lower()
     return shaped_name
 
-#* DONE
 def db_path() -> str | pathlib.Path:
     '''Returns the db path for the conn'''
     def db_folder() -> str:
@@ -56,15 +48,12 @@ def db_path() -> str | pathlib.Path:
     DB_PATH = os.path.join(DB_FOLDER, DB_NAME)
     return DB_PATH
 
-#* DONE
 def show_name(name:str) -> str:
     '''Returns a string that reverses the the effect of db_name'''
     name_elements = name.split("_")
     shaped_name = " ".join(name_elements).capitalize()
     return shaped_name
 
-#* DONE
-#! The key here has to change 42 lines deep in the function
 def create_db() -> None:
     """
     Creates 2 tables. 
@@ -113,7 +102,6 @@ def create_db() -> None:
 
         conn.commit()
 
-#* DONE kinda
 def create_vault_table(vault_name:str, vault_pass:str) -> None:
     """Creates a new vault table in the database and adds its id to the vaults table
 
@@ -165,7 +153,6 @@ def create_vault_table(vault_name:str, vault_pass:str) -> None:
             print(e)
             conn.rollback()
 
-#* STILL WORKING
 def get_all_vaults() -> List[str]:
     '''Returns a list with all the vaults saved in the database'''
     with sqlite3.connect(db_path()) as conn:
@@ -178,8 +165,6 @@ def get_all_vaults() -> List[str]:
 
         return vaults
 
-#* probably works
-# NOTE TESTED with the thanos_is_shit table
 def check_for_valid_vault_password(vault_name:str, vault_pass:str) -> bool:
     """Checks if the hash of vault_pass is equal to the hash that is being stored in the vaults table
 
@@ -212,15 +197,14 @@ def check_for_valid_vault_password(vault_name:str, vault_pass:str) -> bool:
     
     return False
 
-#* DONE
-def check_for_duplicate_account(vault_name: str, account_dict:dict[str:str]) -> bool:
+def check_for_duplicate_account(vault_name: str, account_dict:dict[str, str]) -> bool:
     """Returns true if the account already exists in vault with name vault_name else returns false.
     A duplicate is considered an account with the same combination of email and service as most online
     services do not allow to create a 2 account with 2 emails.
 
     Args:
         vault_name (str): Name of the vault
-        account_dict (dict[str:str]): The dictionary containing the username email password and service as keys
+        account_dict (dict[str, str]): The dictionary containing the username email password and service as keys
         NOTE it's important to pass the encrypted data here 
 
     Returns:
@@ -259,8 +243,7 @@ def check_for_duplicate_account(vault_name: str, account_dict:dict[str:str]) -> 
             print(e)
             return False
 
-#* DONE kinda
-def save_account(vault_name:str, vault_pass:str, account_dict: dict) -> str | dict:
+def save_account(vault_name:str, vault_pass:str, account_dict: dict) -> Optional[str | dict]:
     """Unpacks the account_dict of the account details and saves them into the database.
 
     Args:
@@ -334,8 +317,6 @@ def save_account(vault_name:str, vault_pass:str, account_dict: dict) -> str | di
 
     # Actual storing of the account in the corresponding vault of the db
 
-#*DONE
-#? Not sure if useful
 def get_vault_id(vault_name:str) -> int:
     """Gets the vault_id of the vault_name specified
 
@@ -358,8 +339,7 @@ def get_vault_id(vault_name:str) -> int:
     
     return vault_id
 
-#*DONE
-def get_all_accounts_from_vault(vault_name:str, vault_pass:str) -> list[dict[str:str]]:
+def get_all_accounts_from_vault(vault_name:str, vault_pass:str) -> list[dict[str, str]]:
     """Decrypts all of the contents of the vault and returns them as a list of nicely mapped dictionaries
 
     Args:
@@ -367,7 +347,7 @@ def get_all_accounts_from_vault(vault_name:str, vault_pass:str) -> list[dict[str
         vault_pass (str): The password of the vault
 
     Returns:
-        _type_: list[dict[str:str]]
+        _type_: list[dict[str, str]]
         _description_: Returns a list of the decrypted accounts of the vault
     """
     with sqlite3.connect(db_path()) as conn:
@@ -381,20 +361,19 @@ def get_all_accounts_from_vault(vault_name:str, vault_pass:str) -> list[dict[str
 
         return dec_content
 
-#* DONE
-def get_account_from_vault(vault_name: str, vault_pass: str, account_dict: dict[str:str]) -> dict[str:str]:
+def get_account_from_vault(vault_name: str, vault_pass: str, account_dict: dict[str, str]) -> dict[str, str]:
     """Returns the decrypted version of the account stored in the db. The account_dict  
 
     Args:
         vault_name (str): The name of the vault
         vault_pass (str): The password of the vault
-        account_dict (dict[str:str]): The standard account_dict with 
+        account_dict (dict[str, str]): The standard account_dict with 
         (account_id:optional, username:optional, email:VITAL, password:optional, service:VITAL) as 
         its keys. NOTE you need to input the unencrypted dictionary
         
 
     Returns:
-        _type_: dict[str:str]
+        _type_: dict[str, str]
         _description_: Returns the unencrypted account off of the vault. If it exists. If not returns the equivalent error message
     """
 
@@ -439,7 +418,6 @@ def get_account_from_vault(vault_name: str, vault_pass: str, account_dict: dict[
         return account_dict
         # Return the decrypted account
 
-#* DONE
 def drop_vault(vault_name:str):
     '''Deletes a vault(table) from the database'''
     with sqlite3.connect(db_path()) as conn:
@@ -457,16 +435,13 @@ def drop_vault(vault_name:str):
             conn.rollback()
         conn.commit()
 
-#* STILL WORKING
-#! DEVELOPMENT ONLY FUNCTION
 def drop_all_vaults():
     '''Drops all the vaults'''
     vaults = get_all_vaults()
     for vault in vaults:
         drop_vault(vault)
 
-#* DONE
-def delete_account(vault_name:str, vault_pass:str, account_dict:dict[str:str]) -> str | None:
+def delete_account(vault_name:str, vault_pass:str, account_dict:dict[str, str]) -> str | None:
     """Deletes the account provided from the vault, if it exists.
 
     Args:
@@ -508,5 +483,3 @@ def delete_account(vault_name:str, vault_pass:str, account_dict:dict[str:str]) -
             return str(e)
         
         conn.commit()
-        
-#! FOR TESTING ONLY YOU CAN ADD RUNNABLE CODE    

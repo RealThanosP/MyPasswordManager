@@ -23,10 +23,10 @@ def encrypt(key: str , data: str) -> str:
     return ''.join(encrypted)
 
 #* DONE
-def encrypt_account_dict(key: str, account_dict:dict[str:str]) -> dict[str:str]:
+def encrypt_account_dict(key: str, account_dict:dict[str, str]) -> dict[str, str]:
     """
     Returns:
-        _type_: dict[str:str]
+        _type_: dict[str, str]
         _description_: Returns the encrypted version of the account dict
     """
     enc_account_dict = {}
@@ -58,7 +58,7 @@ def decrypt(key: str , encrypted:str) -> str:
     return ''.join(data)
 
 #* DONE
-def decrypt_account_list(key: str, enc_account_list: list[str]) -> dict[str:str]:
+def decrypt_account_list(key: str, enc_account_list: list[str]) -> dict[str, str]:
     """It decrypts a list and maps the data in a dictionary with 
     (account_id, username, email, password, service) as the keys.
     Returns the decrypted dictionary
@@ -68,7 +68,7 @@ def decrypt_account_list(key: str, enc_account_list: list[str]) -> dict[str:str]
         enc_account_list (list[str]): The encrypted list returned from a sql query
 
     Returns:
-        _type_: dict[str:str]
+        _type_: dict[str, str]
         _description_: Returns the dict with the attributes of the account mapped out_description_: Returns the dict with the attributes of the account mapped out
     """
     account_dict = {}
@@ -84,14 +84,14 @@ def decrypt_account_list(key: str, enc_account_list: list[str]) -> dict[str:str]
     return account_dict
 
 #* DONE
-def decrypt_nested_account_list(key: str, enc_nested_list: list[list[str]]) -> list[dict[str:str]]:
+def decrypt_nested_account_list(key: str, enc_nested_list: list[list[str]]) ->  list[dict[str, str]]:
     """Returns a decrypted list of dictionaries formatted as a regular account_dict
     Args:
         key (str): The key used to encrypt the accounts in the vault
         enc_nested_list (list[list[str]]): The result of a "SELECT * FROM ..." type query 
 
     Returns:
-        _type_: (list[dict[str:str]])
+        _type_: (list[dict[str, str]])
         _description_: Returns a list of dictionaries
     """
     account_dict_list = []

@@ -27,11 +27,11 @@ class PassGenerator:
     
     def selected_characters(self):
         #Lists
-        self.uppercase = self.load_characters("Symbols_Folder/uppercase.json")
-        self.lowercase = self.load_characters("Symbols_Folder/lowercase.json")
+        self.uppercase = self.load_characters("symbols/uppercase.json")
+        self.lowercase = self.load_characters("symbols/lowercase.json")
         self.numbers = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
-        self.symbols = self.load_characters("Symbols_Folder/symbols.json")
-        self.real_words = self.load_characters("Symbols_Folder/words.json")
+        self.symbols = self.load_characters("symbols/symbols.json")
+        self.real_words = self.load_characters("symbols/words.json")
 
         #Checks for allowed characters in the password
         allowed_characters = []

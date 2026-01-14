@@ -1,5 +1,5 @@
 import time
-from PassGen import PassGenerator
+from passgen import PassGenerator
 from itertools import product
 # Purpose of this script: To test the .generate_password() method of PassGenerator class.
 
